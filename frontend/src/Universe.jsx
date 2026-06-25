@@ -53,7 +53,7 @@ const MUSEUM_ROOMS = [
   { id: "ai", name: "Hall of AI", desc: "Exhibits on deep learning, convolution filter scans, multi-head self-attention arrays, and neural confidence calibration." }
 ];
 
-export default function Universe() {
+export default function Universe({ playClick, playSuccess, playNotification }) {
   // Tabs for the Universe operating system
   // 'space-map', 'explorer', 'museum', 'academy', 'telescope', 'detective', 'flight', 'achievements'
   const [activeTab, setActiveTab] = useState('space-map');
@@ -88,6 +88,7 @@ export default function Universe() {
 
   // Trigger cosmic event simulation
   const triggerCosmicEvent = (type) => {
+    if (playNotification) playNotification();
     setCosmicEvent(type);
     setEventProgress(0);
     const interval = setInterval(() => {
@@ -104,9 +105,11 @@ export default function Universe() {
   // Detective Verification
   const makeDetectiveGuess = (guess) => {
     if (guess === 'planet') {
+      if (playSuccess) playSuccess();
       setDetectiveGuess('CORRECT! High-confidence transit detected matching orbital criteria.');
       setDetectiveScore(prev => prev + 10);
     } else {
+      if (playClick) playClick();
       setDetectiveGuess('FAILED. The signal features secondary eclipses indicating a binary star system.');
     }
   };
@@ -114,6 +117,7 @@ export default function Universe() {
   // Spacecraft Flight Simulator Logic
   const moveSpacecraft = (dir) => {
     if (fuel <= 0) return;
+    if (playClick) playClick();
     setSpacecraftPosition((prev) => {
       let nextX = prev.x;
       let nextY = prev.y;
@@ -125,6 +129,7 @@ export default function Universe() {
       setFuel(f => Math.max(0, f - 2));
       // Randomly scan stars if coordinates align
       if (Math.random() > 0.6) {
+        if (playSuccess) playSuccess();
         setScannedStars(s => s + 1);
       }
       return { x: nextX, y: nextY };
@@ -133,6 +138,7 @@ export default function Universe() {
 
   // Telescope Scan simulator
   const startTelescopeScan = () => {
+    if (playNotification) playNotification();
     setIsScanningTelescope(true);
     setPhotonsCollected(0);
     const interval = setInterval(() => {
@@ -140,6 +146,7 @@ export default function Universe() {
         if (prev >= 2000) {
           clearInterval(interval);
           setIsScanningTelescope(false);
+          if (playSuccess) playSuccess();
           return 2000;
         }
         return prev + 100;
@@ -148,7 +155,7 @@ export default function Universe() {
   };
 
   return (
-    <div className="w-full min-h-screen bg-[#020207] text-[#f8fafc] flex flex-col font-sans relative overflow-hidden">
+    <div className="w-full min-h-screen bg-transparent text-[#f8fafc] flex flex-col font-sans relative overflow-hidden">
       
       {/* HUD Universe Header Tab selection bar */}
       <div className="flex flex-wrap gap-2 border-b border-cyan-500/10 pb-4 mb-8">
@@ -160,11 +167,15 @@ export default function Universe() {
           { id: 'telescope', label: '5. Telescope simulator', icon: Sliders },
           { id: 'detective', label: '6. Detective Laboratory', icon: ShieldCheck },
           { id: 'flight', label: '7. Flight Exploration', icon: Rocket },
-          { id: 'achievements', label: '8. Achievements & photo', icon: Award }
+          { id: 'achievements', label: '8. Achievements & photo', icon: Award },
+          { id: 'solar-system', label: '9. 3D Solar System', icon: Sun }
         ].map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => {
+              if (playClick) playClick();
+              setActiveTab(tab.id);
+            }}
             className={`px-4 py-2.5 rounded-lg font-mono text-xs font-bold border flex items-center space-x-2 transition-all duration-300 ${
               activeTab === tab.id
                 ? 'bg-cyan-500/10 border-cyan-500 text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.15)]'
@@ -179,80 +190,7 @@ export default function Universe() {
 
       {/* ================= TAB 1: COSMIC SPACE MAP ================= */}
       {activeTab === 'space-map' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          
-          {/* Left panel: Galaxy Map details */}
-          <div className="lg:col-span-4 space-y-6">
-            <span className="text-cyan-400 font-mono text-xs uppercase tracking-widest block font-bold">Universe Explorer // Space Map</span>
-            <h3 className="text-3xl font-extrabold text-white">Interactive Galaxy Grid</h3>
-            <p className="text-gray-400 font-light text-sm">
-              Freely trace positions across solar systems. Travel through timeline periods using the slider to observe spatial evolution.
-            </p>
-
-            <div className="space-y-2">
-              <div className="flex justify-between font-mono text-xs text-gray-400">
-                <span>Select Space Era</span>
-                <span className="text-cyan-400 font-bold">{timePeriod} AD</span>
-              </div>
-              <input
-                type="range"
-                min="1610"
-                max="2026"
-                value={timePeriod}
-                onChange={(e) => setTimePeriod(Number(e.target.value))}
-                className="w-full h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
-              />
-            </div>
-
-            {/* Trigger cosmic event simulations */}
-            <div className="glass-panel p-4 rounded-lg border border-white/5 space-y-3 font-mono text-xs">
-              <span className="text-cyan-400 block font-bold">Simulate Cosmic Events</span>
-              <div className="grid grid-cols-2 gap-2">
-                <button onClick={() => triggerCosmicEvent('supernova')} className="bg-white/5 hover:bg-white/10 p-2 rounded border border-white/5 text-[10px]">Supernova Explosion</button>
-                <button onClick={() => triggerCosmicEvent('blackhole')} className="bg-white/5 hover:bg-white/10 p-2 rounded border border-white/5 text-[10px]">Gravitational Lensing</button>
-              </div>
-            </div>
-          </div>
-
-          {/* Right panel: 3D interactive Orbit Grid */}
-          <div className="lg:col-span-8 glass-panel p-6 rounded-xl border border-cyan-500/10 min-h-[400px] flex flex-col justify-between relative overflow-hidden">
-            <div className="absolute inset-0 bg-grid-lines opacity-10" />
-            
-            <div className="flex justify-between items-center text-xs font-mono text-cyan-400 z-10">
-              <span>TARGET COORDINATES SYSTEM</span>
-              <span>ERA STATUS: {timePeriod < 1990 ? 'PRE-DISCOVERY ERA' : 'MODERN DEEP SPACE SURVEY'}</span>
-            </div>
-
-            {/* Orbit animation rendering */}
-            <div className="w-full h-64 flex items-center justify-center relative py-6">
-              
-              {/* Giant Sun */}
-              <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-yellow-400 via-orange-500 to-red-600 shadow-[0_0_50px_rgba(234,179,8,0.5)] relative flex items-center justify-center">
-                
-                {/* Simulated Supernova particles */}
-                {cosmicEvent === 'supernova' && (
-                  <div 
-                    className="absolute w-40 h-40 rounded-full bg-cyan-500/30 border border-cyan-400 animate-ping"
-                    style={{ scale: `${eventProgress}%` }}
-                  />
-                )}
-                {/* Black hole lensing */}
-                {cosmicEvent === 'blackhole' && (
-                  <div className="absolute w-36 h-36 border border-white/20 rounded-full animate-spin" />
-                )}
-              </div>
-
-              {/* Orbiting circles */}
-              <div className="absolute w-44 h-[60px] border border-white/10 rounded-full rotate-12" />
-              <div className="absolute w-60 h-[100px] border border-dashed border-white/5 rounded-full -rotate-12" />
-            </div>
-
-            <div className="font-mono text-[10px] text-gray-500 z-10 text-center">
-              DRAG OR SELECT RADIAL VECTORS TO ROTATE GALAXY PATHS
-            </div>
-          </div>
-
-        </div>
+        <SolarSystemView />
       )}
 
       {/* ================= TAB 2: PLANET EXPLORER ENCYCLOPEDIA ================= */}
@@ -268,7 +206,10 @@ export default function Universe() {
               {PLANET_ENCYCLOPEDIA.map((planet) => (
                 <button
                   key={planet.name}
-                  onClick={() => setSelectedPlanet(planet)}
+                  onClick={() => {
+                    if (playClick) playClick();
+                    setSelectedPlanet(planet);
+                  }}
                   className={`w-full text-left p-4 rounded-lg border transition-all duration-200 ${
                     selectedPlanet.name === planet.name
                       ? 'border-cyan-500 bg-cyan-950/20 text-white'
@@ -603,6 +544,432 @@ export default function Universe() {
         </div>
       )}
 
+      {/* ================= TAB 9: INTERACTIVE GALAXY GRID ================= */}
+      {activeTab === 'solar-system' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          
+          {/* Left panel: Galaxy Map details */}
+          <div className="lg:col-span-4 space-y-6">
+            <span className="text-cyan-400 font-mono text-xs uppercase tracking-widest block font-bold">Universe Explorer // Galaxy Map</span>
+            <h3 className="text-3xl font-extrabold text-white font-mono">Milky Way Galaxy Grid</h3>
+            <p className="text-gray-400 font-light text-sm">
+              Freely trace positions across solar systems. Travel through timeline periods using the slider to observe spatial evolution.
+            </p>
+
+            <div className="space-y-2">
+              <div className="flex justify-between font-mono text-xs text-gray-400">
+                <span>Select Space Era</span>
+                <span className="text-cyan-400 font-bold">{timePeriod} AD</span>
+              </div>
+              <input
+                type="range"
+                min="1610"
+                max="2026"
+                value={timePeriod}
+                onChange={(e) => setTimePeriod(Number(e.target.value))}
+                className="w-full h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+              />
+            </div>
+
+            {/* Trigger cosmic event simulations */}
+            <div className="glass-panel p-4 rounded-lg border border-white/5 space-y-3 font-mono text-xs">
+              <span className="text-cyan-400 block font-bold">Simulate Cosmic Events</span>
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={() => triggerCosmicEvent('supernova')} className="bg-white/5 hover:bg-white/10 p-2 rounded border border-white/5 text-[10px]">Supernova Explosion</button>
+                <button onClick={() => triggerCosmicEvent('blackhole')} className="bg-white/5 hover:bg-white/10 p-2 rounded border border-white/5 text-[10px]">Gravitational Lensing</button>
+              </div>
+            </div>
+          </div>
+
+          {/* Right panel: 3D interactive Orbit Grid */}
+          <div className="lg:col-span-8 glass-panel p-6 rounded-xl border border-cyan-500/10 min-h-[400px] flex flex-col justify-between relative overflow-hidden">
+            <div className="absolute inset-0 bg-grid-lines opacity-10" />
+            
+            <div className="flex justify-between items-center text-xs font-mono text-cyan-400 z-10">
+              <span>TARGET COORDINATES SYSTEM</span>
+              <span>ERA STATUS: {timePeriod < 1990 ? 'PRE-DISCOVERY ERA' : 'MODERN DEEP SPACE SURVEY'}</span>
+            </div>
+
+            {/* Orbit animation rendering */}
+            <div className="w-full h-64 flex items-center justify-center relative py-6">
+              
+              {/* Giant Sun */}
+              <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-yellow-400 via-orange-500 to-red-600 shadow-[0_0_50px_rgba(234,179,8,0.5)] relative flex items-center justify-center">
+                
+                {/* Simulated Supernova particles */}
+                {cosmicEvent === 'supernova' && (
+                  <div 
+                    className="absolute w-40 h-40 rounded-full bg-cyan-500/30 border border-cyan-400 animate-ping"
+                    style={{ scale: `${eventProgress}%` }}
+                  />
+                )}
+                {/* Black hole lensing */}
+                {cosmicEvent === 'blackhole' && (
+                  <div className="absolute w-36 h-36 border border-white/20 rounded-full animate-spin" />
+                )}
+              </div>
+
+              {/* Orbiting circles */}
+              <div className="absolute w-44 h-[60px] border border-white/10 rounded-full rotate-12" />
+              <div className="absolute w-60 h-[100px] border border-dashed border-white/5 rounded-full -rotate-12" />
+            </div>
+
+            <div className="font-mono text-[10px] text-gray-500 z-10 text-center">
+              DRAG OR SELECT RADIAL VECTORS TO ROTATE GALAXY PATHS
+            </div>
+          </div>
+
+        </div>
+      )}
+
+    </div>
+  );
+}
+
+const SOLAR_PLANETS = [
+  { name: "Mercury", dist: "0.39 AU", period: "88 Days", temp: "440 K", color: "#9e9e9e", size: 4.5, orbitRadius: 50, speed: 0.04, desc: "The smallest planet in our solar system and closest to the Sun." },
+  { name: "Venus", dist: "0.72 AU", period: "225 Days", temp: "737 K", color: "#e5a93b", size: 6.5, orbitRadius: 75, speed: 0.025, desc: "Second planet from the Sun. It has a thick, toxic atmosphere." },
+  { name: "Earth", dist: "1.00 AU", period: "365 Days", temp: "288 K", color: "#2d7dd2", size: 7, orbitRadius: 105, speed: 0.018, desc: "Our home planet. The only place in the universe known to harbor life." },
+  { name: "Mars", dist: "1.52 AU", period: "687 Days", temp: "210 K", color: "#d24d2d", size: 5.5, orbitRadius: 140, speed: 0.014, desc: "A dusty, cold, desert world with a very thin atmosphere." },
+  { name: "Jupiter", dist: "5.20 AU", period: "12 Years", temp: "165 K", color: "#dfc19c", size: 14, orbitRadius: 185, speed: 0.008, desc: "The largest planet in our solar system, more than twice as massive as all others combined." },
+  { name: "Saturn", dist: "9.58 AU", period: "29 Years", temp: "134 K", color: "#e5c158", size: 11, orbitRadius: 235, speed: 0.005, hasRings: true, desc: "Adorned with a dazzling, complex system of icy rings." },
+  { name: "Uranus", dist: "19.2 AU", period: "84 Years", temp: "76 K", color: "#a5f3fc", size: 8, orbitRadius: 285, speed: 0.003, desc: "An ice giant with a unique sideways tilt of nearly 90 degrees." },
+  { name: "Neptune", dist: "30.1 AU", period: "165 Years", temp: "72 K", color: "#4f46e5", size: 7.5, orbitRadius: 335, speed: 0.002, desc: "The most distant solar planet. Dark, cold, and whipped by supersonic winds." }
+];
+
+function SolarSystemView() {
+  const canvasRef = useRef(null);
+  const [yaw, setYaw] = useState(0.4);
+  const [pitch, setPitch] = useState(0.6);
+  const [zoom, setZoom] = useState(1.1);
+  const [speed, setSpeed] = useState(1.0);
+  const [showOrbits, setShowOrbits] = useState(true);
+  const [selectedPlanet, setSelectedPlanet] = useState(SOLAR_PLANETS[2]);
+
+  const isDragging = useRef(false);
+  const dragStart = useRef({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let animationFrameId;
+    let t = 0;
+
+    const render = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const width = canvas.width;
+      const height = canvas.height;
+      const centerX = width / 2;
+      const centerY = height / 2;
+
+      ctx.fillStyle = '#020206';
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.strokeStyle = 'rgba(6, 182, 212, 0.03)';
+      ctx.lineWidth = 1;
+      for (let r = 50; r < 400; r += 50) {
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, r * zoom, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(0, centerY); ctx.lineTo(width, centerY);
+      ctx.moveTo(centerX, 0); ctx.lineTo(centerX, height);
+      ctx.stroke();
+
+      const project = (x, y, z) => {
+        const x1 = x * Math.cos(yaw) - z * Math.sin(yaw);
+        const z1 = x * Math.sin(yaw) + z * Math.cos(yaw);
+        const y2 = y * Math.cos(pitch) - z1 * Math.sin(pitch);
+        const z2 = y * Math.sin(pitch) + z1 * Math.cos(pitch);
+        const D = 600;
+        const perspective = D / (D + z2);
+        const scale = zoom * perspective;
+        return {
+          x: centerX + x1 * scale,
+          y: centerY + y2 * scale,
+          zDepth: z2,
+          rScale: scale
+        };
+      };
+
+      const objects = [];
+
+      objects.push({
+        type: 'sun',
+        x: 0, y: 0, z: 0,
+        size: 26,
+        color: '#ff9800',
+        projected: project(0, 0, 0)
+      });
+
+      SOLAR_PLANETS.forEach((p) => {
+        const angle = t * p.speed * speed;
+        const planetX = p.orbitRadius * Math.cos(angle);
+        const planetZ = p.orbitRadius * Math.sin(angle);
+        const proj = project(planetX, 0, planetZ);
+
+        objects.push({
+          type: 'planet',
+          name: p.name,
+          color: p.color,
+          size: p.size,
+          hasRings: p.hasRings,
+          projected: proj,
+          orbitRadius: p.orbitRadius,
+          planetData: p
+        });
+
+        if (p.name === 'Earth') {
+          const moonAngle = t * 0.25;
+          const moonX = planetX + 15 * Math.cos(moonAngle);
+          const moonZ = planetZ + 15 * Math.sin(moonAngle);
+          const moonProj = project(moonX, 0, moonZ);
+          objects.push({
+            type: 'moon',
+            color: '#b0bec5',
+            size: 1.8,
+            projected: moonProj
+          });
+        }
+      });
+
+      objects.sort((a, b) => b.projected.zDepth - a.projected.zDepth);
+
+      if (showOrbits) {
+        ctx.lineWidth = 1.2;
+        SOLAR_PLANETS.forEach((p) => {
+          ctx.beginPath();
+          ctx.strokeStyle = selectedPlanet?.name === p.name ? 'rgba(6, 182, 212, 0.45)' : 'rgba(255, 255, 255, 0.08)';
+          for (let i = 0; i <= 72; i++) {
+            const theta = (i / 72) * Math.PI * 2;
+            const ox = p.orbitRadius * Math.cos(theta);
+            const oz = p.orbitRadius * Math.sin(theta);
+            const oproj = project(ox, 0, oz);
+            if (i === 0) {
+              ctx.moveTo(oproj.x, oproj.y);
+            } else {
+              ctx.lineTo(oproj.x, oproj.y);
+            }
+          }
+          ctx.stroke();
+        });
+      }
+
+      objects.forEach((obj) => {
+        const { x, y, rScale } = obj.projected;
+
+        if (obj.type === 'sun') {
+          const glowRad = obj.size * 2 * rScale;
+          const sunGlow = ctx.createRadialGradient(x, y, 2 * rScale, x, y, glowRad);
+          sunGlow.addColorStop(0, '#ffffff');
+          sunGlow.addColorStop(0.2, '#ffea00');
+          sunGlow.addColorStop(0.5, 'rgba(244,143,177,0.3)');
+          sunGlow.addColorStop(1, 'rgba(230,81,0,0)');
+          ctx.fillStyle = sunGlow;
+          ctx.beginPath();
+          ctx.arc(x, y, glowRad, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = '#ffeb3b';
+          ctx.beginPath();
+          ctx.arc(x, y, obj.size * rScale, 0, Math.PI * 2);
+          ctx.fill();
+        } 
+        else if (obj.type === 'planet') {
+          const size = obj.size * rScale;
+
+          if (obj.hasRings) {
+            ctx.strokeStyle = 'rgba(229,193,88,0.5)';
+            ctx.lineWidth = 3.5 * rScale;
+            ctx.beginPath();
+            for (let i = 0; i <= 36; i++) {
+              const theta = (i / 36) * Math.PI * 2;
+              const rx = (obj.size * 1.9) * Math.cos(theta);
+              const rz = (obj.size * 1.9) * Math.sin(theta);
+              const pAngle = t * obj.planetData.speed * speed;
+              const planetX = obj.orbitRadius * Math.cos(pAngle);
+              const planetZ = obj.orbitRadius * Math.sin(pAngle);
+              const ringProj = project(planetX + rx, 0, planetZ + rz);
+              if (i === 0) {
+                ctx.moveTo(ringProj.x, ringProj.y);
+              } else {
+                ctx.lineTo(ringProj.x, ringProj.y);
+              }
+            }
+            ctx.stroke();
+          }
+
+          const grad = ctx.createRadialGradient(x - size/3, y - size/3, size/10, x, y, size);
+          grad.addColorStop(0, '#ffffff');
+          grad.addColorStop(0.2, obj.color);
+          grad.addColorStop(0.8, 'rgba(0,0,0,0.85)');
+          grad.addColorStop(1, 'rgba(0,0,0,0.98)');
+          
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(x, y, size, 0, Math.PI * 2);
+          ctx.fill();
+
+          if (selectedPlanet?.name === obj.name) {
+            ctx.strokeStyle = '#06b6d4';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(x, y, size + 6, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            ctx.fillStyle = '#06b6d4';
+            ctx.font = 'bold 9px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(obj.name.toUpperCase(), x, y - size - 12);
+          } else {
+            ctx.fillStyle = 'rgba(255,255,255,0.45)';
+            ctx.font = '8px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(obj.name, x, y - size - 6);
+          }
+        } 
+        else if (obj.type === 'moon') {
+          ctx.fillStyle = obj.color;
+          ctx.beginPath();
+          ctx.arc(x, y, obj.size * rScale, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+
+      t += 0.5;
+      animationFrameId = requestAnimationFrame(render);
+    };
+
+    render();
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [yaw, pitch, zoom, speed, showOrbits, selectedPlanet]);
+
+  const handleMouseDown = (e) => {
+    isDragging.current = true;
+    dragStart.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging.current) return;
+    const dx = e.clientX - dragStart.current.x;
+    const dy = e.clientY - dragStart.current.y;
+    dragStart.current = { x: e.clientX, y: e.clientY };
+    setYaw((prev) => prev + dx * 0.007);
+    setPitch((prev) => Math.max(0.1, Math.min(Math.PI / 2 - 0.05, prev - dy * 0.007)));
+  };
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 text-left">
+      <div className="lg:col-span-8 flex flex-col space-y-4">
+        <div className="flex justify-between items-center bg-black/40 p-4 rounded-xl border border-white/5 font-mono text-xs">
+          <div>
+            <span className="text-cyan-400 block font-bold">MILKY WAY SYSTEM // SOL SYSTEM</span>
+            <span className="text-[10px] text-gray-500">Drag viewport to rotate orbit paths. Use controls to zoom.</span>
+          </div>
+          <div className="flex space-x-3">
+            <button 
+              onClick={() => setShowOrbits(!showOrbits)}
+              className={`px-3 py-1 rounded border transition-colors ${showOrbits ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/35' : 'bg-white/5 text-gray-400 border-transparent'}`}
+            >
+              ORBITS
+            </button>
+            <button 
+              onClick={() => { setYaw(0.4); setPitch(0.6); setZoom(1.1); }}
+              className="bg-white/5 hover:bg-white/10 px-3 py-1 rounded border border-white/5 text-white"
+            >
+              RESET VIEW
+            </button>
+          </div>
+        </div>
+
+        <div className="relative w-full aspect-video bg-[#020206] rounded-2xl border border-cyan-500/15 overflow-hidden shadow-2xl">
+          <canvas 
+            ref={canvasRef}
+            width={800}
+            height={480}
+            className="w-full h-full cursor-grab active:cursor-grabbing block"
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={() => { isDragging.current = false; }}
+            onMouseLeave={() => { isDragging.current = false; }}
+          />
+
+          <div className="absolute right-4 bottom-4 glass-panel px-4 py-3 rounded-xl border border-white/10 space-y-2.5 w-44 font-mono text-[10px]">
+            <div className="space-y-1">
+              <div className="flex justify-between text-gray-400"><span>Zoom:</span> <span className="text-white font-bold">{(zoom * 100).toFixed(0)}%</span></div>
+              <input 
+                type="range" min="0.4" max="2.5" step="0.05" value={zoom} 
+                onChange={(e) => setZoom(parseFloat(e.target.value))}
+                className="w-full h-0.5 bg-gray-800 rounded appearance-none cursor-pointer accent-cyan-400"
+              />
+            </div>
+            <div className="space-y-1">
+              <div className="flex justify-between text-gray-400"><span>Orbit Speed:</span> <span className="text-white font-bold">{speed.toFixed(1)}x</span></div>
+              <input 
+                type="range" min="0.0" max="3.0" step="0.1" value={speed} 
+                onChange={(e) => setSpeed(parseFloat(e.target.value))}
+                className="w-full h-0.5 bg-gray-800 rounded appearance-none cursor-pointer accent-cyan-400"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="lg:col-span-4 flex flex-col justify-between space-y-6">
+        <div className="glass-panel p-5 rounded-2xl border border-cyan-500/15 text-left flex-1 flex flex-col justify-between">
+          <div>
+            <span className="text-[10px] text-gray-500 font-mono block border-b border-white/5 pb-2">SOLAR TELEMETRY</span>
+            <div className="mt-4 flex flex-col space-y-4">
+              <div className="grid grid-cols-4 gap-1.5">
+                {SOLAR_PLANETS.map((p) => (
+                  <button 
+                    key={p.name}
+                    onClick={() => setSelectedPlanet(p)}
+                    className={`py-1 rounded font-mono text-[9px] font-bold border transition-all ${
+                      selectedPlanet?.name === p.name 
+                        ? 'bg-cyan-500/10 border-cyan-500 text-cyan-400' 
+                        : 'bg-white/5 border-transparent text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    {p.name.slice(0, 3).toUpperCase()}
+                  </button>
+                ))}
+              </div>
+
+              {selectedPlanet && (
+                <div className="space-y-3.5 font-mono text-xs pt-2">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-3.5 h-3.5 rounded-full" style={{ backgroundColor: selectedPlanet.color }} />
+                    <h3 className="text-lg font-bold text-white uppercase">{selectedPlanet.name}</h3>
+                  </div>
+                  <p className="text-[11px] text-gray-400 font-light leading-relaxed">{selectedPlanet.desc}</p>
+                  
+                  <div className="space-y-2 border-t border-white/5 pt-3">
+                    <div className="flex justify-between"><span className="text-gray-500">Distance from Sun:</span> <span className="text-white font-bold">{selectedPlanet.dist}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Orbital Period:</span> <span className="text-white font-bold">{selectedPlanet.period}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Average Temp:</span> <span className="text-cyan-400 font-bold">{selectedPlanet.temp}</span></div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="border-t border-white/5 pt-4 mt-6">
+            <div className="flex items-center space-x-2 bg-purple-950/15 border border-purple-500/20 p-3.5 rounded-xl">
+              <Sliders className="w-5 h-5 text-purple-400" />
+              <div className="font-mono text-[10px]">
+                <span className="text-white block font-bold">Stellar Physicist Info</span>
+                <span className="text-gray-400">Exoplanet models calibrate based on this system as ground truth.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

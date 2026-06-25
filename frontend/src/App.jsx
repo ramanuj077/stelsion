@@ -6,7 +6,8 @@ import {
   Volume2, VolumeX, Eye, BookOpen, Clock, Compass, Terminal, ShieldAlert, 
   Cpu, Layers, Search, BarChart3, Radio, Server, Award, Info, ChevronRight,
   Monitor, Presentation, UserCheck, Settings, Check, ChevronLeft, Gamepad2, Database, Rocket,
-  TrendingUp, Minimize2, Maximize2, AlertCircle, Compass as CompassIcon, Disc
+  TrendingUp, Minimize2, Maximize2, AlertCircle, Compass as CompassIcon, Disc,
+  Pause, SkipBack, SkipForward
 } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, AreaChart, Area } from 'recharts';
 import Universe from './Universe';
@@ -63,30 +64,6 @@ const INTERNATIONAL_AGENCIES = [
     scientificDetails: "Using AstroSat's UVIT, ISRO scientists monitor host stars to analyze the UV flare rates of M-dwarf systems. This is critical to understanding whether candidates detected in habitable zones can retain their atmosphere or are stripped by stellar winds.",
     collaboration: "Collaborates with the Indian Institute of Astrophysics (IIA) and Physical Research Laboratory (PRL) for ground-based radial velocity follow-ups.",
     color: "border-orange-500/30 text-orange-400 bg-orange-950/10"
-  },
-  {
-    id: "cnsa",
-    short: "CNSA",
-    name: "China National Space Administration (China)",
-    logo: "🇨🇳",
-    pipeline: "Earth 2.0 (ET) Space Mission Data Portal",
-    primaryMissions: ["Earth 2.0 (ET) Mission Concept", "CHASE (Chinese H-alpha Solar Explorer)", "Purple Mountain Observatory Transit Studies"],
-    technicalApproach: "Proposing a space mission equipped with seven transit survey telescopes targeting the Kepler field to find true Earth-twins orbiting G-type stars.",
-    scientificDetails: "The Earth 2.0 mission will utilize micro-lensing and transit photometry simultaneously. Six telescopes will monitor the Kepler field for transits, while the seventh will watch the Galactic bulge for gravitational micro-lensing events.",
-    collaboration: "Integrates datasets with international astronomical organizations to confirm micro-lensing alerts.",
-    color: "border-yellow-500/30 text-yellow-500 bg-yellow-950/10"
-  },
-  {
-    id: "csa",
-    short: "CSA",
-    name: "Canadian Space Agency (Canada)",
-    logo: "🇨🇦",
-    pipeline: "JWST FGS/NIRISS Data reduction Pipeline",
-    primaryMissions: ["James Webb Space Telescope (NIRISS Instrument)", "MOST (Microvariability and Oscillations of STars)", "NEOSSat (Near-Earth Object Surveillance Satellite)"],
-    technicalApproach: "Contributed the Fine Guidance Sensor (FGS) and Near-Infrared Imager and Slitless Spectrograph (NIRISS) to JWST, enabling high-precision transit spectroscopy.",
-    scientificDetails: "NIRISS provides unique wide-field slitless and single-object slitless spectroscopy modes optimized for observing bright host stars during planetary transit. It targets atmospheric molecular bands of water, carbon dioxide, and methane.",
-    collaboration: "Shares instrument science time with international consortia to study gas giants and rocky super-Earths.",
-    color: "border-red-400/30 text-red-300 bg-red-950/10"
   }
 ];
 
@@ -100,12 +77,6 @@ const HISTORICAL_TIMELINE = [
   { year: "2018", title: "TESS Launch & All-Sky Survey", desc: "NASA launches Transiting Exoplanet Survey Satellite to scan 85% of the sky for nearby bright stars.", category: "Mission" },
   { year: "2021", title: "JWST Launch & Atmospheric Spectroscopy", desc: "James Webb Space Telescope begins high-resolution infrared spectroscopy of exoplanet atmospheres.", category: "Mission" },
   { year: "2026", title: "STELSION Wavelet-Attention Launch", desc: "Integrating deep self-attention pipelines with adaptive wavelet denoising to automate detection on massive sky-surveys.", category: "AI Technology" }
-];
-
-const STAR_TYPES = [
-  { name: "M-Dwarf (Red dwarf)", temp: "3,000 K", size: "0.4 Solar Radii", color: "from-red-600 to-orange-500", transitProb: "High" },
-  { name: "G-Type (Sun-like)", temp: "5,800 K", size: "1.0 Solar Radii", color: "from-yellow-400 to-amber-500", transitProb: "Medium" },
-  { name: "F-Type (Hot Star)", temp: "7,200 K", size: "1.4 Solar Radii", color: "from-cyan-100 to-yellow-200", transitProb: "Low" }
 ];
 
 const EXOPLANET_DATABASE = [
@@ -199,16 +170,244 @@ const RESEARCH_PAPERS = [
   }
 ];
 
-// --- WEB AUDIO SYNTHESIZER BOOTSTRAP ---
+const STAR_TYPES = [
+  { name: "M-Dwarf (Red dwarf)", temp: "3,000 K", size: "0.4 Solar Radii", color: "from-red-600 to-orange-500", transitProb: "High" },
+  { name: "G-Type (Sun-like)", temp: "5,800 K", size: "1.0 Solar Radii", color: "from-yellow-400 to-amber-500", transitProb: "Medium" },
+  { name: "F-Type (Hot Star)", temp: "7,200 K", size: "1.4 Solar Radii", color: "from-cyan-100 to-yellow-200", transitProb: "Low" }
+];
+
+// --- WEB AUDIO SYNTHESIZER ---
 class SpaceSynth {
   constructor() {
     this.ctx = null;
     this.muted = true;
+    this.currentTrack = 0;
+    this.isPlaying = false;
+    this.oscillators = [];
+    this.musicInterval = null;
+    this.filterNode = null;
+    this.masterGainNode = null;
+    this.volume = 0.6;
+    this.tracks = [
+      { name: "Stellar Drift", desc: "Cosmic Voyager", tempo: 4200 },
+      { name: "Cosmic Whispers", desc: "Pulsar Signal", tempo: 3400 },
+      { name: "Andromeda Nebula", desc: "Gaseous Cluster", tempo: 4800 },
+      { name: "Pulsar Echoes", desc: "Neutron Star Beacon", tempo: 2800 },
+      { name: "Supernova Flare", desc: "Thermonuclear Swell", tempo: 5000 }
+    ];
   }
   init() {
     if (!this.ctx) {
       this.ctx = new (window.AudioContext || window.webkitAudioContext)();
     }
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+    if (!this.masterGainNode) {
+      try {
+        this.masterGainNode = this.ctx.createGain();
+        this.masterGainNode.gain.value = this.volume;
+        this.masterGainNode.gain.setValueAtTime(this.volume, this.ctx.currentTime);
+        this.masterGainNode.connect(this.ctx.destination);
+      } catch(e) {}
+    }
+  }
+  setVolume(value) {
+    this.volume = value;
+    if (this.masterGainNode) {
+      try {
+        this.masterGainNode.gain.value = value;
+        this.masterGainNode.gain.setValueAtTime(value, this.ctx.currentTime);
+      } catch(e) {}
+    }
+  }
+  playMusic() {
+    this.init();
+    this.stopMusic();
+    if (this.muted) return;
+    this.isPlaying = true;
+
+    try {
+      this.filterNode = this.ctx.createBiquadFilter();
+      this.filterNode.type = 'lowpass';
+      this.filterNode.frequency.setValueAtTime(800, this.ctx.currentTime);
+      if (this.masterGainNode) {
+        this.filterNode.connect(this.masterGainNode);
+      } else {
+        this.filterNode.connect(this.ctx.destination);
+      }
+    } catch(e) {}
+
+    const playChord = () => {
+      if (!this.isPlaying || this.muted) return;
+      this.oscillators.forEach(o => { try { o.stop(); } catch(e) {} });
+      this.oscillators = [];
+      const now = this.ctx.currentTime;
+
+      try {
+        if (this.currentTrack === 0) {
+          // Stellar Drift: Warm sawtooth chords
+          const chords = [
+            [130.81, 164.81, 196.00, 246.94], // C3, E3, G3, B3
+            [174.61, 220.00, 261.63, 329.63]  // F3, A3, C4, E4
+          ];
+          const chord = chords[Math.floor(Math.random() * chords.length)];
+          chord.forEach((freq) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(freq, now);
+            gain.gain.setValueAtTime(0, now);
+            gain.gain.linearRampToValueAtTime(0.08, now + 1.2);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 3.9);
+            osc.connect(gain);
+            if (this.filterNode) gain.connect(this.filterNode);
+            else if (this.masterGainNode) gain.connect(this.masterGainNode);
+            else gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 4);
+            this.oscillators.push(osc);
+          });
+        } else if (this.currentTrack === 1) {
+          // Cosmic Whispers: Triangle base + random sine bells
+          const notes = [293.66, 329.63, 392.00, 440.00, 523.25, 587.33];
+          const baseOsc = this.ctx.createOscillator();
+          const baseGain = this.ctx.createGain();
+          baseOsc.type = 'triangle';
+          baseOsc.frequency.setValueAtTime(110.00, now);
+          baseGain.gain.setValueAtTime(0, now);
+          baseGain.gain.linearRampToValueAtTime(0.12, now + 0.8);
+          baseGain.gain.exponentialRampToValueAtTime(0.0001, now + 2.9);
+          baseOsc.connect(baseGain);
+          if (this.filterNode) baseGain.connect(this.filterNode);
+          else if (this.masterGainNode) baseGain.connect(this.masterGainNode);
+          else baseGain.connect(this.ctx.destination);
+          baseOsc.start(now);
+          baseOsc.stop(now + 3);
+          this.oscillators.push(baseOsc);
+
+          for (let i = 0; i < 3; i++) {
+            const noteFreq = notes[Math.floor(Math.random() * notes.length)];
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(noteFreq, now + i * 0.4);
+            gain.gain.setValueAtTime(0, now + i * 0.4);
+            gain.gain.linearRampToValueAtTime(0.06, now + i * 0.4 + 0.1);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.4 + 0.8);
+            osc.connect(gain);
+            if (this.filterNode) gain.connect(this.filterNode);
+            else if (this.masterGainNode) gain.connect(this.masterGainNode);
+            else gain.connect(this.ctx.destination);
+            osc.start(now + i * 0.4);
+            osc.stop(now + i * 0.4 + 0.8);
+            this.oscillators.push(osc);
+          }
+        } else if (this.currentTrack === 2) {
+          // Andromeda Nebula: Deep, slow-modulating filter sweep on minor 9th chords
+          const chords = [
+            [110.00, 146.83, 164.81, 220.00, 261.63], // A2, D3, E3, A3, C4
+            [146.83, 196.00, 220.00, 293.66, 349.23]  // D2, G3, A3, D4, F4
+          ];
+          const chord = chords[Math.floor(Math.random() * chords.length)];
+          if (this.filterNode) {
+            this.filterNode.frequency.setValueAtTime(200, now);
+            this.filterNode.frequency.exponentialRampToValueAtTime(1200, now + 2.0);
+            this.filterNode.frequency.exponentialRampToValueAtTime(300, now + 4.5);
+          }
+          chord.forEach((freq) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, now);
+            gain.gain.setValueAtTime(0, now);
+            gain.gain.linearRampToValueAtTime(0.1, now + 1.8);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 4.5);
+            osc.connect(gain);
+            if (this.filterNode) gain.connect(this.filterNode);
+            else if (this.masterGainNode) gain.connect(this.masterGainNode);
+            else gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 4.8);
+            this.oscillators.push(osc);
+          });
+        } else if (this.currentTrack === 3) {
+          // Pulsar Echoes: High-pitched rhythmic pulsing with simulated echoes
+          const notes = [440.00, 523.25, 587.33, 659.25, 783.99, 880.00];
+          const rootFreq = 73.42; // D2 deep drone
+          const baseOsc = this.ctx.createOscillator();
+          const baseGain = this.ctx.createGain();
+          baseOsc.type = 'sawtooth';
+          baseOsc.frequency.setValueAtTime(rootFreq, now);
+          baseGain.gain.setValueAtTime(0, now);
+          baseGain.gain.linearRampToValueAtTime(0.05, now + 0.5);
+          baseGain.gain.exponentialRampToValueAtTime(0.0001, now + 2.5);
+          baseOsc.connect(baseGain);
+          if (this.filterNode) baseGain.connect(this.filterNode);
+          else if (this.masterGainNode) baseGain.connect(this.masterGainNode);
+          else baseGain.connect(this.ctx.destination);
+          baseOsc.start(now);
+          baseOsc.stop(now + 2.6);
+          this.oscillators.push(baseOsc);
+
+          // Pulses
+          const pulseCount = 6;
+          for (let i = 0; i < pulseCount; i++) {
+            const freq = notes[(Math.floor(now / 3) + i) % notes.length];
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now + i * 0.3);
+            gain.gain.setValueAtTime(0, now + i * 0.3);
+            gain.gain.linearRampToValueAtTime(0.07 / (1 + i * 0.5), now + i * 0.3 + 0.05); // Echo decay
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.3 + 0.45);
+            osc.connect(gain);
+            if (this.filterNode) gain.connect(this.filterNode);
+            else if (this.masterGainNode) gain.connect(this.masterGainNode);
+            else gain.connect(this.ctx.destination);
+            osc.start(now + i * 0.3);
+            osc.stop(now + i * 0.3 + 0.5);
+            this.oscillators.push(osc);
+          }
+        } else {
+          // Supernova Flare: Dramatic rising swell of square and sawtooth waves
+          const chord = [82.41, 123.47, 164.81, 246.94]; // E2, B2, E3, B3
+          chord.forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = idx % 2 === 0 ? 'square' : 'sawtooth';
+            osc.frequency.setValueAtTime(freq, now);
+            // Slowly slide frequencies upward to simulate gravitational lensing/supernova expansion
+            osc.frequency.exponentialRampToValueAtTime(freq * 1.05, now + 4.5);
+            
+            gain.gain.setValueAtTime(0, now);
+            gain.gain.linearRampToValueAtTime(0.06, now + 3.0); // slow rise
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 4.9);
+            osc.connect(gain);
+            
+            if (this.filterNode) gain.connect(this.filterNode);
+            else if (this.masterGainNode) gain.connect(this.masterGainNode);
+            else gain.connect(this.ctx.destination);
+            
+            osc.start(now);
+            osc.stop(now + 5);
+            this.oscillators.push(osc);
+          });
+        }
+      } catch(e) {}
+    };
+
+    playChord();
+    this.musicInterval = setInterval(playChord, this.tracks[this.currentTrack].tempo);
+  }
+  stopMusic() {
+    this.isPlaying = false;
+    if (this.musicInterval) {
+      clearInterval(this.musicInterval);
+      this.musicInterval = null;
+    }
+    this.oscillators.forEach(o => { try { o.stop(); } catch(e) {} });
+    this.oscillators = [];
   }
   playClick() {
     if (this.muted) return;
@@ -251,9 +450,9 @@ class SpaceSynth {
       const osc1 = this.ctx.createOscillator();
       const osc2 = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
-      osc1.frequency.setValueAtTime(523.25, this.ctx.currentTime); // C5
-      osc1.frequency.setValueAtTime(659.25, this.ctx.currentTime + 0.1); // E5
-      osc2.frequency.setValueAtTime(783.99, this.ctx.currentTime + 0.2); // G5
+      osc1.frequency.setValueAtTime(523.25, this.ctx.currentTime); 
+      osc1.frequency.setValueAtTime(659.25, this.ctx.currentTime + 0.1); 
+      osc2.frequency.setValueAtTime(783.99, this.ctx.currentTime + 0.2); 
       gain.gain.setValueAtTime(0.04, this.ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.4);
       osc1.connect(gain);
@@ -265,29 +464,9 @@ class SpaceSynth {
       osc2.stop(this.ctx.currentTime + 0.4);
     } catch(e){}
   }
-  playError() {
-    if (this.muted) return;
-    this.init();
-    try {
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(150, this.ctx.currentTime);
-      osc.frequency.linearRampToValueAtTime(90, this.ctx.currentTime + 0.3);
-      gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.3);
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-      osc.start();
-      osc.stop(this.ctx.currentTime + 0.3);
-    } catch(e){}
-  }
 }
 const sfx = new SpaceSynth();
 
-// ==========================================
-// --- TYPOGRAPHY ANIMATOR COMPONENT --------
-// ==========================================
 function NarrativeTyper({ text, speed = 25, onComplete }) {
   const [displayed, setDisplayed] = useState('');
   useEffect(() => {
@@ -307,19 +486,18 @@ function NarrativeTyper({ text, speed = 25, onComplete }) {
   return <span className="font-mono leading-relaxed">{displayed}</span>;
 }
 
-// ==========================================
-// --- MAIN INTERACTIVE APPLICATION ---------
-// ==========================================
 export default function App() {
   // App Experience States
-  // 'presentation' (cinematic storytelling) or 'research' (interactive hub)
+  // 'presentation' (cinematic storytelling) or 'research' (interactive hub) or 'universe'
   const [experienceMode, setExperienceMode] = useState('presentation');
   const [presentationStage, setPresentationStage] = useState(0);
   const [autoplay, setAutoplay] = useState(false);
   const [muted, setMuted] = useState(true);
+  const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
+  const [isMusicPlaying, setIsMusicPlaying] = useState(false);
+  const [volume, setVolume] = useState(0.6);
 
-  // Research Hub Navigation Tab
-  // 'mission-control', 'labs', 'agencies', 'games', 'timeline', 'papers'
+  // Research Hub Tab
   const [researchTab, setResearchTab] = useState('mission-control');
 
   // Presentation State Parameters
@@ -330,17 +508,17 @@ export default function App() {
   const [confidencePercent, setConfidencePercent] = useState(0);
   const [selectedExoplanet, setSelectedExoplanet] = useState(EXOPLANET_DATABASE[0]);
 
-  // Research Labs parameters
+  // Research parameters
   const [selectedStar, setSelectedStar] = useState(STAR_TYPES[1]);
-  const [planetRadiusRatio, setPlanetRadiusRatio] = useState(1.2); // Jupiter radii
-  const [orbitPeriodDays, setOrbitPeriodDays] = useState(15.4); // Days
+  const [planetRadiusRatio, setPlanetRadiusRatio] = useState(1.2); 
+  const [orbitPeriodDays, setOrbitPeriodDays] = useState(15.4); 
   const [activeWaveletLevel, setActiveWaveletLevel] = useState(4);
   const [preprocessingMode, setPreprocessingMode] = useState('raw');
 
   // Live telemetry mock stats
-  const [starsScreenedCount, setStarsScreenedCount] = useState(1240431);
-  const [candidatesFoundCount, setCandidatesFoundCount] = useState(298);
-  const [gpuLoadPercent, setGpuLoadPercent] = useState(62);
+  const [starsScreenedCount, setStarsScreenedCount] = useState(1245832);
+  const [candidatesFoundCount, setCandidatesFoundCount] = useState(318);
+  const [gpuLoadPercent, setGpuLoadPercent] = useState(69);
   const [observatoryConsoleLogs, setObservatoryConsoleLogs] = useState([
     "SYS: Calibration of photometers completed.",
     "INGEST: Streaming Sector 44 Kepler raw targets...",
@@ -348,27 +526,18 @@ export default function App() {
   ]);
 
   // Games States
-  // Game 1: Inclination Alignment Game
   const [game1Angle, setGame1Angle] = useState(45);
   const [game1Status, setGame1Status] = useState('');
-  
-  // Game 2: Atmospheric Wavelength Matcher
   const [game2WavelengthH2O, setGame2WavelengthH2O] = useState(30);
   const [game2WavelengthCH4, setGame2WavelengthCH4] = useState(80);
   const [game2Completed, setGame2Completed] = useState(false);
-
-  // Game 3: Signal Bandwidth Filter Game
   const [game3LowCutoff, setGame3LowCutoff] = useState(10);
   const [game3HighCutoff, setGame3HighCutoff] = useState(90);
   const [game3Status, setGame3Status] = useState('');
-
-  // Game 4: Orbital Velocity Calculation Game
-  const [game4Distance, setGame4Distance] = useState(1.0); // AU
-  const [game4Mass, setGame4Mass] = useState(1.0); // Solar Masses
-  const [game4Velocity, setGame4Velocity] = useState(30); // km/s
+  const [game4Distance, setGame4Distance] = useState(1.0); 
+  const [game4Mass, setGame4Mass] = useState(1.0); 
+  const [game4Velocity, setGame4Velocity] = useState(30); 
   const [game4Result, setGame4Result] = useState('');
-
-  // Game 5: Starspot Temperature Matcher Game
   const [game5TempSlider, setGame5TempSlider] = useState(4000);
   const [game5Result, setGame5Result] = useState('');
 
@@ -388,21 +557,7 @@ export default function App() {
     setStars(starArr);
   }, []);
 
-  // Sound Synthesizer toggle handler
-  const handleMutedToggle = () => {
-    const nextMuted = !muted;
-    setMuted(nextMuted);
-    sfx.muted = nextMuted;
-    if (!nextMuted) {
-      sfx.playNotification();
-    }
-  };
-
-  const playClickSFX = () => {
-    sfx.playClick();
-  };
-
-  // Star orbits simulator timer loop
+  // Orbit simulator
   useEffect(() => {
     const interval = setInterval(() => {
       setOrbitProgress((prev) => (prev + 1.2) % 100);
@@ -414,7 +569,7 @@ export default function App() {
   useEffect(() => {
     const interval = setInterval(() => {
       setStarsScreenedCount((prev) => prev + Math.floor(Math.random() * 8) + 1);
-      setGpuLoadPercent(Math.floor(58 + Math.random() * 12));
+      setGpuLoadPercent(Math.floor(55 + Math.random() * 15));
       if (Math.random() > 0.88) {
         setCandidatesFoundCount((prev) => prev + 1);
         const newLog = `DETECTED: Exoplanet candidate at coordinates RA:${(Math.random()*24).toFixed(2)}h DEC:${(Math.random()*90).toFixed(2)}°`;
@@ -425,30 +580,152 @@ export default function App() {
     return () => clearInterval(interval);
   }, [muted]);
 
-  // Autoplay story transition scheduler
+  // Autoplay story controller
   useEffect(() => {
-    if (!autoplay || experienceMode !== 'presentation') return;
-    const interval = setInterval(() => {
-      setPresentationStage((prev) => {
-        const next = (prev + 1) % 9;
-        sfx.playNotification();
-        return next;
-      });
-    }, 18000);
-    return () => clearInterval(interval);
-  }, [autoplay, experienceMode]);
+    if (!autoplay) return;
 
-  // Game 2 check
-  useEffect(() => {
-    // Water target is ~45, Methane target is ~15
-    if (Math.abs(game2WavelengthH2O - 45) < 5 && Math.abs(game2WavelengthCH4 - 15) < 5) {
-      setGame2Completed(true);
-    } else {
-      setGame2Completed(false);
+    // If currently in research or universe mode and autoplay starts, switch back to presentation
+    if (experienceMode !== 'presentation') {
+      setExperienceMode('presentation');
+      setPresentationStage(0);
+      return;
     }
-  }, [game2WavelengthH2O, game2WavelengthCH4]);
 
-  // Generate simulated light curves based on parameters
+    let timer;
+
+    if (presentationStage === 0) {
+      // Transition from dashboard to AI Narrator
+      timer = setTimeout(() => {
+        setPresentationStage(1);
+      }, 2000);
+    } else if (presentationStage === 2) {
+      // Stage 2 -> Stage 3
+      timer = setTimeout(() => {
+        setPresentationStage(3);
+      }, 4000);
+    } else if (presentationStage === 3) {
+      // Stage 3 -> Stage 4 (enable noise)
+      timer = setTimeout(() => {
+        setNoiseActive(true);
+        setPresentationStage(4);
+      }, 5000);
+    } else if (presentationStage === 4) {
+      // Stage 4 -> Stage 5 (run AI detection)
+      timer = setTimeout(() => {
+        runWOWDetectionSequence();
+      }, 4000);
+    } else if (presentationStage === 6) {
+      // Stage 6 -> Stage 7
+      timer = setTimeout(() => {
+        setPresentationStage(7);
+      }, 5000);
+    } else if (presentationStage === 7) {
+      // Stage 7 -> Stage 8
+      timer = setTimeout(() => {
+        setPresentationStage(8);
+      }, 6000);
+    } else if (presentationStage === 8) {
+      // Stage 8 -> Enter Research Hub
+      timer = setTimeout(() => {
+        setExperienceMode('research');
+        setResearchTab('mission-control');
+        setAutoplay(false); // Stop autoplay once entered the hub
+      }, 5000);
+    }
+
+    return () => clearTimeout(timer);
+  }, [autoplay, presentationStage, experienceMode]);
+
+  // Audio helper
+  const handleMutedToggle = () => {
+    const nextMuted = !muted;
+    setMuted(nextMuted);
+    sfx.muted = nextMuted;
+    if (nextMuted) {
+      sfx.stopMusic();
+      setIsMusicPlaying(false);
+    } else {
+      sfx.playMusic();
+      setIsMusicPlaying(true);
+    }
+  };
+
+  const handleMusicPlayPause = () => {
+    playClickSFX();
+    const nextPlay = !isMusicPlaying;
+    setIsMusicPlaying(nextPlay);
+    if (muted && nextPlay) {
+      setMuted(false);
+      sfx.muted = false;
+    }
+    if (nextPlay) {
+      sfx.playMusic();
+    } else {
+      sfx.stopMusic();
+    }
+  };
+
+  const handleNextTrack = () => {
+    playClickSFX();
+    const nextIdx = (currentTrackIndex + 1) % sfx.tracks.length;
+    setCurrentTrackIndex(nextIdx);
+    sfx.currentTrack = nextIdx;
+    if (isMusicPlaying) {
+      sfx.playMusic();
+    }
+  };
+
+  const handlePrevTrack = () => {
+    playClickSFX();
+    const prevIdx = (currentTrackIndex - 1 + sfx.tracks.length) % sfx.tracks.length;
+    setCurrentTrackIndex(prevIdx);
+    sfx.currentTrack = prevIdx;
+    if (isMusicPlaying) {
+      sfx.playMusic();
+    }
+  };
+
+  const playClickSFX = () => {
+    sfx.playClick();
+  };
+
+  const verifyGame1Inclination = () => {
+    playClickSFX();
+    if (game1Angle >= 84 && game1Angle <= 90) {
+      setGame1Status('SUCCESS! Planet inclination matches orbital plane geometry. Transit dips verified.');
+    } else {
+      setGame1Status('FAILED. Inclination angle is too offset. The planetary disk bypasses the host star.');
+    }
+  };
+
+  const verifyGame3Filters = () => {
+    playClickSFX();
+    if (game3LowCutoff <= 15 && game3HighCutoff >= 75) {
+      setGame3Status('SUCCESS! Bandpass spectrum isolates the transit envelope. Denoising complete.');
+    } else {
+      setGame3Status('FAILED. Filter cutoffs cut into the transit envelope frequency bands.');
+    }
+  };
+
+  const verifyGame4Velocity = () => {
+    playClickSFX();
+    const targetVelocity = Math.round(30 * Math.sqrt(game4Mass / game4Distance));
+    if (Math.abs(game4Velocity - targetVelocity) <= 3) {
+      setGame4Result(`SUCCESS! Velocity matches planetary dynamics (${targetVelocity} km/s calculated). Stable orbit locked.`);
+    } else {
+      setGame4Result(`FAILED. Planet velocity is unstable. Correct velocity should be ~${targetVelocity} km/s.`);
+    }
+  };
+
+  const verifyGame5Temp = () => {
+    playClickSFX();
+    if (game5TempSlider >= 3800 && game5TempSlider <= 4600) {
+      setGame5Result('SUCCESS! Calibration matched starspot thermal profiles. Stellar flare noise subtracted.');
+    } else {
+      setGame5Result('FAILED. Temperature is too close to solar photosphere or too cool for target spectral class.');
+    }
+  };
+
   const generatePhotometryCurve = () => {
     const length = 120;
     const data = [];
@@ -464,7 +741,6 @@ export default function App() {
         transitDip = -transitDepth * Math.pow(1 - Math.pow(distanceRatio, 2), 0.5);
       }
 
-      // Add noise sources if active
       let noiseVal = 0;
       const noiseMultiplier = noiseIntensity / 100;
       if (noiseActive) {
@@ -490,12 +766,10 @@ export default function App() {
 
   const currentCurveData = generatePhotometryCurve();
 
-  // Run AI Denoising Pipeline Animation
   const runWOWDetectionSequence = () => {
     setPresentationStage(5);
     setActivePipelineStep(0);
     setConfidencePercent(12);
-    sfx.playNotification();
 
     const pipelineSteps = [
       { step: 0, conf: 12 }, 
@@ -512,74 +786,22 @@ export default function App() {
         sfx.playClick();
         if (s.step === 4) {
           setTimeout(() => {
-            setPresentationStage(6); // Planet Found reveal
-            sfx.playSuccess();
+            setPresentationStage(6); 
           }, 1500);
         }
       }, s.step * 1600);
     });
   };
 
-  // Game 1 Alignment Verification
-  const verifyGame1Inclination = () => {
-    playClickSFX();
-    // Kepler-like transit alignment occurs at near edge-on inclination (e.g. 84° to 90°)
-    if (game1Angle >= 84 && game1Angle <= 90) {
-      setGame1Status('SUCCESS! Planet inclination matches orbital plane geometry. Transit dips verified.');
-      sfx.playSuccess();
-    } else {
-      setGame1Status('FAILED. Inclination angle is too offset. The planetary disk bypasses the host star.');
-      sfx.playError();
-    }
-  };
-
-  // Game 3 Filter Verification
-  const verifyGame3Filters = () => {
-    playClickSFX();
-    // Kepler-like transit signals are low-frequency, high-frequency noise is located above 80hz
-    if (game3LowCutoff <= 15 && game3HighCutoff >= 75) {
-      setGame3Status('SUCCESS! Bandpass spectrum isolates the transit envelope. Denoising complete.');
-      sfx.playSuccess();
-    } else {
-      setGame3Status('FAILED. Filter cutoffs cut into the transit envelope frequency bands.');
-      sfx.playError();
-    }
-  };
-
-  // Game 4 Orbital Velocity Verification
-  const verifyGame4Velocity = () => {
-    playClickSFX();
-    // Keplers third law approximation: v = sqrt(G*M/r) where G is grav.
-    // For G=1, M=1, r=1, v ~ 30 km/s.
-    const targetVelocity = Math.round(30 * Math.sqrt(game4Mass / game4Distance));
-    if (Math.abs(game4Velocity - targetVelocity) <= 3) {
-      setGame4Result(`SUCCESS! Velocity matches planetary dynamics (${targetVelocity} km/s calculated). Stable orbit locked.`);
-      sfx.playSuccess();
-    } else {
-      setGame4Result(`FAILED. Planet velocity is unstable. Correct velocity for these masses should be ~${targetVelocity} km/s.`);
-      sfx.playError();
-    }
-  };
-
-  // Game 5 Starspot Matcher Verification
-  const verifyGame5Temp = () => {
-    playClickSFX();
-    // Starspots are cooler than surrounding stellar surface. G-Type star is 5800K, spot is ~4000-4500K
-    if (game5TempSlider >= 3800 && game5TempSlider <= 4600) {
-      setGame5Result('SUCCESS! Calibration matched starspot thermal profiles. Stellar flare noise subtracted.');
-      sfx.playSuccess();
-    } else {
-      setGame5Result('FAILED. Temperature is too close to solar photosphere or too cool for target spectral class.');
-      sfx.playError();
-    }
-  };
-
   return (
-    <div className="relative min-h-screen bg-[#020205] text-[#f8fafc] overflow-x-hidden select-none font-sans">
+    <div 
+      className="relative min-h-screen text-[#f8fafc] overflow-hidden select-none font-sans bg-cover bg-center bg-no-repeat"
+      style={{ backgroundImage: 'linear-gradient(to bottom, rgba(2, 2, 5, 0.78), rgba(2, 2, 5, 0.93)), url(/space_bg.png)', backgroundAttachment: 'fixed' }}
+    >
       
       {/* Background Starfield */}
       <div className="absolute inset-0 pointer-events-none z-0">
-        <svg className="absolute w-full h-full opacity-40">
+        <svg className="absolute w-full h-full opacity-35">
           {stars.map((star) => (
             <circle
               key={star.id}
@@ -599,71 +821,61 @@ export default function App() {
       </div>
 
       {/* Astro Control Deck HUD Header */}
-      <header className="sticky top-0 z-50 w-full glass-panel border-b border-cyan-500/10 px-6 py-4 flex justify-between items-center bg-[#020205]/80">
+      <header className="sticky top-0 z-50 w-full px-6 py-4 flex justify-between items-center bg-[#020205]/90 border-b border-cyan-500/10">
         <div className="flex items-center space-x-3 cursor-pointer" onClick={() => { playClickSFX(); setPresentationStage(0); setExperienceMode('presentation'); }}>
           <Orbit className="w-6 h-6 text-cyan-400 animate-spin" style={{ animationDuration: '30s' }} />
           <div>
             <span className="font-extrabold tracking-widest text-lg text-white font-mono">STELSION</span>
-            <span className="text-[10px] text-cyan-400 font-mono ml-2">V3 // LABS PLATFORM</span>
           </div>
         </div>
 
         {/* Global HUD controls */}
-        <div className="flex items-center space-x-3 text-xs font-mono">
+        <div className="flex items-center space-x-4 text-xs font-mono">
           <button
             onClick={() => { playClickSFX(); setExperienceMode('universe'); }}
-            className={`px-3 py-1.5 rounded border transition-all duration-200 flex items-center space-x-1.5 ${
+            className={`px-4 py-2 rounded-lg border transition-all duration-200 flex items-center space-x-1.5 ${
               experienceMode === 'universe'
-                ? 'bg-purple-500/10 text-purple-400 border-purple-500/30 shadow-[0_0_10px_rgba(168,85,247,0.15)]'
+                ? 'bg-purple-500/15 text-purple-400 border-purple-500/40 shadow-[0_0_15px_rgba(168,85,247,0.25)]'
                 : 'text-gray-400 border-white/5 hover:bg-white/5'
             }`}
           >
             <Globe className="w-3.5 h-3.5" />
-            <span>🌌 STELSION UNIVERSE</span>
+            <span>STELSION UNIVERSE</span>
           </button>
 
-          {experienceMode === 'presentation' && (
-            <>
-              <button
-                onClick={() => { playClickSFX(); setExperienceMode('research'); setResearchTab('mission-control'); }}
-                className="px-3 py-1.5 rounded border border-cyan-500/35 text-cyan-400 bg-cyan-950/20 hover:bg-cyan-900/10 flex items-center space-x-1 transition-all duration-200"
-              >
-                <Monitor className="w-3.5 h-3.5" />
-                <span>01. MISSION CONTROL</span>
-              </button>
-              <button
-                onClick={() => { playClickSFX(); setAutoplay(!autoplay); }}
-                className={`px-3 py-1.5 rounded border transition-all duration-300 flex items-center space-x-1.5 ${
-                  autoplay 
-                    ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30 shadow-[0_0_10px_rgba(6,182,212,0.15)]' 
-                    : 'text-gray-400 border-white/5 hover:bg-white/5'
-                }`}
-              >
-                <Clock className="w-3.5 h-3.5" />
-                <span>{autoplay ? 'AUTOPLAY ACTIVE' : 'AUTOPLAY STORY'}</span>
-              </button>
-            </>
-          )}
+          <button
+            onClick={() => { playClickSFX(); setAutoplay(!autoplay); }}
+            className={`px-4 py-2 rounded-lg border transition-all duration-200 flex items-center space-x-1.5 ${
+              autoplay 
+                ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30' 
+                : 'text-gray-400 border-white/5 hover:bg-white/5'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>AUTOPLAY STORY</span>
+          </button>
 
-          {experienceMode === 'research' && (
-            <button
-              onClick={() => { playClickSFX(); setExperienceMode('presentation'); setPresentationStage(0); }}
-              className="px-3 py-1.5 rounded border border-yellow-500/20 text-yellow-400 bg-yellow-950/20 flex items-center space-x-1 hover:bg-yellow-900/10"
-            >
-              <Presentation className="w-3.5 h-3.5" />
-              <span>LAUNCH PRESENTATION</span>
-            </button>
-          )}
+          <button
+            onClick={() => { playClickSFX(); setExperienceMode('research'); setResearchTab('mission-control'); }}
+            className={`px-4 py-2 rounded-lg border transition-all duration-200 flex items-center space-x-1.5 ${
+              experienceMode === 'research'
+                ? 'bg-blue-500/10 text-blue-400 border-blue-500/30'
+                : 'text-gray-400 border-white/5 hover:bg-white/5'
+            }`}
+          >
+            <Monitor className="w-3.5 h-3.5" />
+            <span>MISSION CONTROL</span>
+          </button>
 
-          {experienceMode === 'universe' && (
-            <button
-              onClick={() => { playClickSFX(); setExperienceMode('presentation'); setPresentationStage(0); }}
-              className="px-3 py-1.5 rounded border border-yellow-500/20 text-yellow-400 bg-yellow-950/20 flex items-center space-x-1 hover:bg-yellow-900/10"
-            >
-              <Presentation className="w-3.5 h-3.5" />
-              <span>LAUNCH PRESENTATION</span>
-            </button>
-          )}
+          <div className="flex items-center space-x-2 border-l border-white/10 pl-4">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-500 to-purple-600 flex items-center justify-center text-[10px] font-bold text-white shadow-lg">
+              A
+            </div>
+            <div className="text-left">
+              <div className="text-[10px] text-white font-bold">ASTRONAUT</div>
+              <div className="text-[9px] text-gray-500">Level 07</div>
+            </div>
+          </div>
 
           <button 
             onClick={handleMutedToggle}
@@ -674,47 +886,279 @@ export default function App() {
         </div>
       </header>
 
-      {/* ================= EXPERIENCE 1: PRESENTATION MODE (CINEMATIC STORY) ================= */}
-      {experienceMode === 'presentation' && (
+      {/* ================= STAGE 0: MAIN COCKPIT DASHBOARD ================= */}
+      {experienceMode === 'presentation' && presentationStage === 0 && (
+        <div 
+          className="relative z-10 w-full min-h-[90vh] grid grid-cols-12 gap-5 px-5 py-5 bg-cover rounded-3xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.8)] border border-white/5"
+          style={{ backgroundImage: 'url(/cockpit_new.jpg)', backgroundPosition: 'center 80%', backgroundRepeat: 'no-repeat' }}
+        >
+          
+          {/* LEFT SIDEBAR PANEL */}
+          <div className="col-span-3 flex flex-col justify-between space-y-4">
+            
+            {/* Astronaut Banner */}
+            <div className="glass-panel p-4 rounded-xl border border-cyan-500/15 text-left">
+              <span className="text-[9px] text-gray-500 font-mono block">WELCOME BACK,</span>
+              <h3 className="text-lg font-bold tracking-wider text-white font-mono mt-0.5">ASTRONAUT</h3>
+              
+              <button
+                onClick={() => { playClickSFX(); setPresentationStage(1); }}
+                className="w-full mt-3 py-2.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/35 rounded-xl font-mono text-xs tracking-wider flex justify-between items-center px-4 transition-all duration-200"
+              >
+                <span>MISSION STATUS</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* System Overview Statistics */}
+            <div className="glass-panel p-4 rounded-xl border border-cyan-500/15 space-y-3 text-left">
+              <div className="flex items-center space-x-2 text-[9px] text-gray-400 font-mono border-b border-white/5 pb-2">
+                <Globe className="w-3.5 h-3.5 text-cyan-400" />
+                <span>SYSTEM OVERVIEW</span>
+              </div>
+              <div className="space-y-2 font-mono text-xs">
+                <div className="flex justify-between"><span className="text-gray-500">Stars Mapped:</span> <span className="text-white font-bold">{starsScreenedCount.toLocaleString()}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Exoplanets Found:</span> <span className="text-white font-bold">{candidatesFoundCount}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Active Missions:</span> <span className="text-cyan-400 font-bold">8</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Data Streams:</span> <span className="text-emerald-400 font-bold">7 Live</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">AI Models Running:</span> <span className="text-white">4</span></div>
+              </div>
+            </div>
+
+            {/* Ship Status Circular Health */}
+            <div className="glass-panel p-4 rounded-xl border border-cyan-500/15 space-y-3 text-left">
+              <div className="flex justify-between items-center text-[9px] text-gray-400 font-mono border-b border-white/5 pb-2">
+                <span>SHIP STATUS</span>
+              </div>
+              <div className="flex items-center space-x-4">
+                <div className="relative w-14 h-14 flex items-center justify-center">
+                  <svg className="w-full h-full transform -rotate-90">
+                    <circle cx="28" cy="28" r="24" stroke="rgba(255,255,255,0.05)" strokeWidth="3" fill="transparent" />
+                    <circle cx="28" cy="28" r="24" stroke="#06b6d4" strokeWidth="3" fill="transparent" strokeDasharray="150" strokeDashoffset="3" />
+                  </svg>
+                  <span className="absolute text-xs font-bold text-white font-mono">98%</span>
+                </div>
+                <div>
+                  <div className="text-[11px] text-gray-400 font-mono">All Systems</div>
+                  <div className="text-[11px] text-emerald-400 font-mono font-bold">Nominal</div>
+                </div>
+              </div>
+              
+              {/* Ship Outline blueprint */}
+              <div className="h-12 w-full flex items-center justify-center border border-white/5 rounded-xl bg-black/40">
+                <Rocket className="w-6 h-6 text-cyan-400/30 animate-pulse" />
+              </div>
+            </div>
+
+            {/* Audio Widget now playing */}
+            <div className="glass-panel p-3.5 rounded-xl border border-cyan-500/15 space-y-3 text-left">
+              <span className="text-[9px] text-gray-500 font-mono block">NOW PLAYING</span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-7 h-7 rounded bg-gradient-to-tr from-cyan-900 to-purple-900 flex items-center justify-center">
+                    <Disc className={`w-3.5 h-3.5 text-cyan-400 ${isMusicPlaying ? 'animate-spin' : ''}`} style={{ animationDuration: '6s' }} />
+                  </div>
+                  <div>
+                    <div className="text-xs text-white font-bold">{sfx.tracks[currentTrackIndex].name}</div>
+                    <div className="text-[9px] text-gray-500">{sfx.tracks[currentTrackIndex].desc}</div>
+                  </div>
+                </div>
+                <button className="text-gray-500 hover:text-white transition-colors">
+                  <Minimize2 className="w-3 h-3" />
+                </button>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="space-y-1">
+                <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden cursor-pointer relative">
+                  <div className="absolute top-0 left-0 h-full bg-cyan-400" style={{ width: isMusicPlaying ? '60%' : '15%' }} />
+                </div>
+              </div>
+
+              {/* Volume Slider */}
+              <div className="flex items-center space-x-2 font-mono text-[9px] text-gray-500">
+                <span>Vol</span>
+                <input 
+                  type="range" min="0" max="1" step="0.05" value={volume} 
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    setVolume(val);
+                    sfx.setVolume(val);
+                  }}
+                  className="w-full h-0.5 bg-white/10 rounded appearance-none cursor-pointer accent-cyan-400"
+                />
+                <span className="text-gray-400 font-bold">{Math.round(volume * 100)}%</span>
+              </div>
+
+              {/* Controls */}
+              <div className="flex items-center justify-center space-x-5 text-gray-400">
+                <button onClick={handlePrevTrack} className="hover:text-white transition-colors">
+                  <SkipBack className="w-3.5 h-3.5" />
+                </button>
+                <button onClick={handleMusicPlayPause} className="w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:text-white hover:bg-white/10 transition-all duration-200">
+                  {!isMusicPlaying ? <Play className="w-3 h-3 text-cyan-400 ml-0.5" /> : <Pause className="w-3 h-3 text-cyan-400" />}
+                </button>
+                <button onClick={handleNextTrack} className="hover:text-white transition-colors">
+                  <SkipForward className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+          {/* CENTER WINDOW VIEW - THE SPACE FIELD */}
+          <div className="col-span-6 flex flex-col justify-between space-y-4">
+            
+            {/* Giant Space Window Panel */}
+            <div className="rounded-3xl flex-1 relative overflow-hidden bg-transparent flex flex-col items-center justify-center p-6 text-center">
+              {/* Spinning Galaxy inside viewing window */}
+              <div className="absolute inset-0 z-0 flex items-center justify-center opacity-20 pointer-events-none">
+                <div className="w-[450px] h-[450px] rounded-full border border-cyan-500/10 animate-slow-rotate" style={{ animationDuration: '90s' }} />
+                <div className="absolute w-[300px] h-[300px] rounded-full border border-blue-500/10 animate-slow-rotate" style={{ animationDirection: 'reverse', animationDuration: '60s' }} />
+                <div className="absolute w-28 h-28 rounded-full bg-purple-500/5 blur-3xl animate-pulse" />
+              </div>
+
+              {/* Title Content */}
+              <div className="relative z-10 space-y-4">
+                <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tighter text-white leading-none drop-shadow-[0_4px_8px_rgba(0,0,0,0.9)]">
+                  EXPLORE.<br />DISCOVER.<br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400 text-neon-cyan animate-pulse">UNDERSTAND.</span>
+                </h1>
+                <p className="text-gray-200 text-xs sm:text-sm max-w-sm mx-auto font-normal leading-relaxed drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
+                  Stelsion is your AI-powered companion to decode the universe.
+                </p>
+                
+                <button
+                  onClick={() => { playClickSFX(); setPresentationStage(1); }}
+                  className="px-8 py-3 rounded-full bg-gradient-to-r from-purple-500 to-cyan-500 hover:from-purple-400 hover:to-cyan-400 text-black font-extrabold font-mono text-xs tracking-wider transition-all duration-300 hover:scale-105 shadow-lg shadow-cyan-500/20"
+                >
+                  START JOURNEY &gt;
+                </button>
+              </div>
+            </div>
+
+            {/* Active Missions bottom carousel card array */}
+            <div className="grid grid-cols-4 gap-3">
+              {[
+                { name: "Kepler-22b", task: "Analysis in Progress", progress: 65, color: "bg-cyan-500" },
+                { name: "TRAPPIST-1e", task: "Data Collection", progress: 28, color: "bg-purple-500" },
+                { name: "Proxima Centauri b", task: "Signal Processing", progress: 48, color: "bg-blue-500" },
+                { name: "LHS 1140 b", task: "Orbit Mapping", progress: 72, color: "bg-emerald-500" }
+              ].map((m) => (
+                <div key={m.name} className="p-3 bg-white/5 backdrop-blur-[2px] border border-white/10 rounded-xl text-left font-mono text-[9px] hover:bg-white/10 hover:border-white/20 transition-all duration-200">
+                  <div className="text-white font-bold truncate">{m.name}</div>
+                  <div className="text-gray-500 truncate mt-0.5">{m.task}</div>
+                  <div className="mt-2.5">
+                    <div className="flex justify-between text-gray-400 mb-1">
+                      <span>Progress</span>
+                      <span>{m.progress}%</span>
+                    </div>
+                    <div className="w-full h-1 bg-slate-900/60 rounded-full overflow-hidden">
+                      <div className={`h-full ${m.color}`} style={{ width: `${m.progress}%` }} />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+          </div>
+
+          {/* RIGHT SIDEBAR PANEL */}
+          <div className="col-span-3 flex flex-col justify-between space-y-4">
+            
+            {/* Universe Feed alerts */}
+            <div className="glass-panel p-4 rounded-xl border border-cyan-500/15 space-y-3 text-left flex flex-col justify-between">
+              <div>
+                <span className="text-[9px] text-gray-500 font-mono block border-b border-white/5 pb-2">UNIVERSE FEED</span>
+                <div className="space-y-2.5 font-mono text-[10px] mt-2">
+                  <div className="flex items-start space-x-2">
+                    <span className="text-cyan-400">●</span>
+                    <div>
+                      <div className="text-white">New Exoplanet Candidate</div>
+                      <div className="text-[9px] text-gray-500">Detected in Kepler Sector (2m ago)</div>
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-2">
+                    <span className="text-orange-400">●</span>
+                    <div>
+                      <div className="text-white">Gamma Ray Burst</div>
+                      <div className="text-[9px] text-gray-500 font-mono">GRB 230529 detected (17m ago)</div>
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-2">
+                    <span className="text-purple-400">●</span>
+                    <div>
+                      <div className="text-white">Black Hole Activity</div>
+                      <div className="text-[9px] text-gray-500">Increased radiation observed (42m ago)</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => { playClickSFX(); setExperienceMode('research'); setResearchTab('mission-control'); }}
+                className="w-full mt-3 py-2 bg-white/5 hover:bg-white/10 text-cyan-400 hover:text-cyan-300 border border-white/5 rounded-xl font-mono text-[9px] tracking-wider flex justify-between items-center px-4 transition-all duration-200"
+              >
+                <span>VIEW ALL EVENTS</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Telemetry Stream waveform display */}
+            <div className="glass-panel p-4 rounded-xl border border-cyan-500/15 space-y-3 text-left">
+              <span className="text-[9px] text-gray-500 font-mono block border-b border-white/5 pb-2">TELEMETRY STREAM</span>
+              <div className="h-12 w-full flex items-center justify-center">
+                {/* Simulated waveforms */}
+                <svg className="w-full h-6 stroke-cyan-500 stroke-2 fill-none">
+                  <path d="M 0 12 Q 20 4, 40 12 T 80 12 T 120 12 T 160 12 T 200 12" />
+                </svg>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center font-mono text-[9px]">
+                <div>
+                  <span className="text-gray-500 block">Photon Count</span>
+                  <span className="text-white font-bold">8.43M</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 block">Signal Quality</span>
+                  <span className="text-white font-bold">92%</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 block">Noise Level</span>
+                  <span className="text-cyan-400 font-bold">Low</span>
+                </div>
+              </div>
+            </div>
+
+            {/* AI Core status visualizer */}
+            <div className="glass-panel p-4 rounded-xl border border-cyan-500/15 space-y-3 text-left flex-1 flex flex-col justify-between">
+              <div>
+                <span className="text-[9px] text-gray-500 font-mono block border-b border-white/5 pb-2">AI CORE STATUS</span>
+                <div className="flex justify-between items-center mt-2 font-mono text-xs">
+                  <span className="text-gray-400">Models Online</span>
+                  <span className="text-emerald-400 font-bold">4/4</span>
+                </div>
+              </div>
+              
+              <div className="h-14 w-full flex items-center justify-center">
+                <Brain className="w-8 h-8 text-purple-400 animate-pulse" />
+              </div>
+
+              <button
+                onClick={() => { playClickSFX(); setExperienceMode('research'); setResearchTab('deep-learning'); }}
+                className="w-full py-2 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/35 rounded-xl font-mono text-[9px] text-center transition-all duration-200"
+              >
+                OPEN AI CORE &gt;
+              </button>
+            </div>
+
+          </div>
+
+        </div>
+      )}
+
+      {/* ================= PRESENTATION CINEMATIC STORY MODE SEQUENCES ================= */}
+      {experienceMode === 'presentation' && presentationStage > 0 && (
         <div className="relative z-10 w-full min-h-[85vh] flex flex-col justify-center items-center px-4 sm:px-8 py-16">
           <AnimatePresence mode="wait">
             
-            {/* Stage 0: Intro */}
-            {presentationStage === 0 && (
-              <motion.div
-                key="intro"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 1.05 }}
-                transition={{ duration: 0.8 }}
-                className="max-w-4xl text-center flex flex-col items-center"
-              >
-                <div className="w-60 h-60 relative mb-8 flex items-center justify-center">
-                  <div className="absolute inset-0 rounded-full border border-dashed border-cyan-500/10 animate-slow-rotate" />
-                  <div className="absolute w-40 h-40 rounded-full border border-blue-500/10 animate-slow-rotate" style={{ animationDirection: 'reverse', animationDuration: '30s' }} />
-                  <div className="absolute w-20 h-20 rounded-full bg-cyan-500/10 blur-xl animate-pulse" />
-                  <Globe className="w-14 h-14 text-cyan-400/80 animate-float" />
-                </div>
-
-                <span className="text-cyan-400 font-mono tracking-[0.3em] uppercase text-xs font-semibold mb-3">
-                  AI-Powered Exoplanet Detection Platform
-                </span>
-                <h1 className="text-6xl sm:text-8xl font-black text-white tracking-tighter mb-4 text-neon-cyan">
-                  STELSION
-                </h1>
-                <p className="text-gray-400 text-lg max-w-xl font-light mb-8 leading-relaxed">
-                  An immersive scientific storytelling experience. Step inside our telemetry algorithms to discover hidden worlds orbiting distant stars.
-                </p>
-
-                <button
-                  onClick={() => { playClickSFX(); setPresentationStage(1); }}
-                  className="px-8 py-4 rounded bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-black font-extrabold tracking-widest text-xs font-mono shadow-[0_0_30px_rgba(6,182,212,0.25)] transition-all duration-300 hover:scale-105"
-                >
-                  BEGIN MISSION
-                </button>
-              </motion.div>
-            )}
-
             {/* Stage 1: AI Narrator */}
             {presentationStage === 1 && (
               <motion.div
@@ -950,7 +1394,7 @@ export default function App() {
                 className="max-w-4xl text-center space-y-12 flex flex-col items-center"
               >
                 <div className="text-xl sm:text-3xl text-gray-300 leading-relaxed font-light italic max-w-2xl">
-                  "The next habitable world may already exist in today's telescope data."
+                  "The next habitable world may already exist in today's data. STELSION helps us find it."
                 </div>
 
                 <div className="space-y-2 pt-6">
@@ -1250,7 +1694,7 @@ export default function App() {
                     <div className="space-y-2 text-xs font-mono">
                       <div><span className="text-gray-500">Missions:</span> <span className="text-white">{agency.primaryMissions.join(', ')}</span></div>
                       <div><span className="text-gray-500">Calibration Pipeline:</span> <span className="text-white block mt-1 text-[11px] text-gray-400">{agency.pipeline}</span></div>
-                      <div><span className="text-gray-500">Primary Stack:</span> <span className="text-cyan-400 block mt-1">{agency.tech || agency.technicalApproach}</span></div>
+                      <div><span className="text-gray-500">Primary Stack:</span> <span className="text-cyan-400 block mt-1">{agency.technicalApproach}</span></div>
                     </div>
                   </div>
                 ))}
@@ -1507,13 +1951,13 @@ export default function App() {
                 <span className="text-cyan-400 font-mono text-xs uppercase tracking-widest font-bold">Research History</span>
                 <h4 className="text-xl font-bold text-white">Historical Telemetry Milestones</h4>
                 
-                <div className="relative border-l border-cyan-500/20 pl-6 space-y-6 text-left">
+                <div className="relative border-l border-cyan-500/20 pl-6 space-y-6 text-left font-mono text-xs">
                   {HISTORICAL_TIMELINE.map((event) => (
                     <div key={event.year} className="relative">
                       <div className="absolute -left-[30px] top-1.5 w-3 h-3 rounded-full bg-slate-900 border-2 border-cyan-500" />
-                      <span className="text-[10px] font-mono text-cyan-400 font-bold">{event.year} // {event.category}</span>
-                      <h5 className="text-xs font-bold text-white">{event.title}</h5>
-                      <p className="text-[11px] text-gray-500 leading-normal">{event.desc}</p>
+                      <span className="text-[10px] text-cyan-400 font-bold">{event.year} // {event.category}</span>
+                      <h5 className="text-xs font-bold text-white mt-1">{event.title}</h5>
+                      <p className="text-[11px] text-gray-500 leading-normal mt-0.5">{event.desc}</p>
                     </div>
                   ))}
                 </div>
@@ -1664,7 +2108,11 @@ export default function App() {
 
       {experienceMode === 'universe' && (
         <div className="relative z-10 max-w-7xl mx-auto px-4 md:px-8 py-8 space-y-12">
-          <Universe />
+          <Universe 
+            playClick={() => sfx.playClick()} 
+            playSuccess={() => sfx.playSuccess()} 
+            playNotification={() => sfx.playNotification()} 
+          />
         </div>
       )}
 
