@@ -18,23 +18,30 @@ class InceptionModule1D(layers.Layer):
         
         # Bottleneck convolution to compress features
         self.bottleneck = layers.Conv1D(
-            self.bottleneck_filters, kernel_size=1, padding='same', use_bias=False
+            self.bottleneck_filters, kernel_size=1, padding='same', 
+            kernel_regularizer=tf.keras.regularizers.l2(1e-4), use_bias=False
         )
         
         # Parallel multi-scale convolutions
         self.conv_small = layers.Conv1D(
-            self.filters, kernel_size=9, strides=self.stride, padding='same', use_bias=False
+            self.filters, kernel_size=9, strides=self.stride, padding='same', 
+            kernel_regularizer=tf.keras.regularizers.l2(1e-4), use_bias=False
         )
         self.conv_medium = layers.Conv1D(
-            self.filters, kernel_size=19, strides=self.stride, padding='same', use_bias=False
+            self.filters, kernel_size=19, strides=self.stride, padding='same', 
+            kernel_regularizer=tf.keras.regularizers.l2(1e-4), use_bias=False
         )
         self.conv_large = layers.Conv1D(
-            self.filters, kernel_size=39, strides=self.stride, padding='same', use_bias=False
+            self.filters, kernel_size=39, strides=self.stride, padding='same', 
+            kernel_regularizer=tf.keras.regularizers.l2(1e-4), use_bias=False
         )
         
         # Max pooling branch
         self.maxpool = layers.MaxPool1D(pool_size=3, strides=self.stride, padding='same')
-        self.conv_pool = layers.Conv1D(self.filters, kernel_size=1, padding='same', use_bias=False)
+        self.conv_pool = layers.Conv1D(
+            self.filters, kernel_size=1, padding='same', 
+            kernel_regularizer=tf.keras.regularizers.l2(1e-4), use_bias=False
+        )
         
         self.bn = layers.BatchNormalization()
         self.relu = layers.ReLU()
@@ -43,7 +50,8 @@ class InceptionModule1D(layers.Layer):
         self.out_channels = 4 * self.filters
         if actual_in_channels != self.out_channels or self.stride != 1:
             self.shortcut_conv = layers.Conv1D(
-                self.out_channels, kernel_size=1, strides=self.stride, padding='same', use_bias=False
+                self.out_channels, kernel_size=1, strides=self.stride, padding='same', 
+                kernel_regularizer=tf.keras.regularizers.l2(1e-4), use_bias=False
             )
             self.shortcut_bn = layers.BatchNormalization()
             
@@ -95,8 +103,11 @@ class MultiAxisAttention2D(layers.Layer):
         self.major_bn = layers.BatchNormalization()
         self.minor_bn = layers.BatchNormalization()
         
-        # Down-projection convolution to restore feature dimension
-        self.project = layers.Conv1D(in_channels, kernel_size=1, use_bias=False)
+        # Down-projection convolution to restore feature dimension (with L2 Regularization)
+        self.project = layers.Conv1D(
+            in_channels, kernel_size=1, 
+            kernel_regularizer=tf.keras.regularizers.l2(1e-4), use_bias=False
+        )
         self.bn_out = layers.BatchNormalization()
         
         super(MultiAxisAttention2D, self).build(input_shape)
@@ -153,17 +164,26 @@ class LocalFeatureExtractor1D(layers.Layer):
         self.dropout_rate = dropout
 
     def build(self, input_shape):
-        self.conv1 = layers.Conv1D(32, kernel_size=5, strides=2, padding='same', use_bias=False)
+        self.conv1 = layers.Conv1D(
+            32, kernel_size=5, strides=2, padding='same', 
+            kernel_regularizer=tf.keras.regularizers.l2(1e-4), use_bias=False
+        )
         self.bn1 = layers.BatchNormalization()
         self.relu1 = layers.ReLU()
         self.drop1 = layers.Dropout(self.dropout_rate)
         
-        self.conv2 = layers.Conv1D(64, kernel_size=5, strides=2, padding='same', use_bias=False)
+        self.conv2 = layers.Conv1D(
+            64, kernel_size=5, strides=2, padding='same', 
+            kernel_regularizer=tf.keras.regularizers.l2(1e-4), use_bias=False
+        )
         self.bn2 = layers.BatchNormalization()
         self.relu2 = layers.ReLU()
         self.drop2 = layers.Dropout(self.dropout_rate)
         
-        self.conv3 = layers.Conv1D(128, kernel_size=5, strides=2, padding='same', use_bias=False)
+        self.conv3 = layers.Conv1D(
+            128, kernel_size=5, strides=2, padding='same', 
+            kernel_regularizer=tf.keras.regularizers.l2(1e-4), use_bias=False
+        )
         self.bn3 = layers.BatchNormalization()
         self.relu3 = layers.ReLU()
         self.drop3 = layers.Dropout(self.dropout_rate)
@@ -206,16 +226,18 @@ class UpgradedExoplanetDetectorNet(models.Model):
         self.num_heads = num_heads
 
         # --- GLOBAL BRANCH SETUP ---
-        self.global_conv = layers.Conv1D(32, kernel_size=7, strides=2, padding='same', use_bias=False)
+        self.global_conv = layers.Conv1D(
+            32, kernel_size=7, strides=2, padding='same', 
+            kernel_regularizer=tf.keras.regularizers.l2(1e-4), use_bias=False
+        )
         self.global_bn = layers.BatchNormalization()
         self.global_relu = layers.ReLU()
         self.global_maxpool = layers.MaxPool1D(pool_size=3, strides=2, padding='same')
         
         # Stacked Inception Modules replacing basic convolutions
-        # Length progression: 2000 -> 1000 -> 500 (Initial) -> 250 (inc1: stride=2) -> 250 (inc2: stride=1) -> 250 (inc3: stride=1)
-        self.global_inc1 = InceptionModule1D(filters=16, bottleneck_filters=16, stride=2, name="inc_module_1") # Output: 64 channels (4*16)
-        self.global_inc2 = InceptionModule1D(filters=32, bottleneck_filters=32, stride=1, name="inc_module_2") # Output: 128 channels (4*32)
-        self.global_inc3 = InceptionModule1D(filters=64, bottleneck_filters=64, stride=1, name="inc_module_3") # Output: 256 channels (4*64)
+        self.global_inc1 = InceptionModule1D(filters=16, bottleneck_filters=16, stride=2, name="inc_module_1") 
+        self.global_inc2 = InceptionModule1D(filters=32, bottleneck_filters=32, stride=1, name="inc_module_2") 
+        self.global_inc3 = InceptionModule1D(filters=64, bottleneck_filters=64, stride=1, name="inc_module_3") 
         
         # Multi-Axis Attention Layer (Horizontal shape + Vertical stability)
         self.global_attention = MultiAxisAttention2D(num_orbits=10, orbit_len=25, num_heads=num_heads)
@@ -225,9 +247,9 @@ class UpgradedExoplanetDetectorNet(models.Model):
         self.local_branch = LocalFeatureExtractor1D(dropout=dropout)
         
         # --- CLASSIFICATION HEAD ---
-        self.fc1 = layers.Dense(64, activation='relu')
+        self.fc1 = layers.Dense(64, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(1e-4))
         self.dropout_layer = layers.Dropout(dropout)
-        self.fc2 = layers.Dense(1, activation='sigmoid')
+        self.fc2 = layers.Dense(1, activation='sigmoid', kernel_regularizer=tf.keras.regularizers.l2(1e-4))
         
     def compile(self, optimizer, loss_fn, **kwargs):
         super(UpgradedExoplanetDetectorNet, self).compile(**kwargs)

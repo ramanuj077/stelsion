@@ -56,11 +56,33 @@ class ExoplanetDataset(tf.keras.utils.Sequence):
         # Pre-generate different stellar baselines (to avoid pure uniform noise)
         self.baselines = []
         for _ in range(num_samples):
-            # Baseline contains low frequency stellar variability (sine waves) + random walk
+            # Rotational Modulation (spots rotating) with randomized amplitudes/periods per star
             time = np.linspace(0, 10, length)
-            stellar_var = 0.02 * np.sin(2 * np.pi * time / 3) + 0.005 * np.cos(2 * np.pi * time / 0.5)
-            noise = np.random.normal(0, 0.004, length)
-            self.baselines.append(1.0 + stellar_var + noise)
+            p1 = np.random.uniform(2.0, 5.0)
+            p2 = np.random.uniform(0.3, 1.0)
+            amp1 = np.random.uniform(0.01, 0.03)
+            amp2 = np.random.uniform(0.002, 0.008)
+            stellar_var = amp1 * np.sin(2 * np.pi * time / p1) + amp2 * np.cos(2 * np.pi * time / p2)
+            
+            # Pointing Jitter / Sensitivity jumps (Thruster firing)
+            jitter = np.zeros(length)
+            if np.random.random() < 0.3: # 30% chance of a pointing jump
+                jump_idx = np.random.randint(200, length - 200)
+                jump_val = np.random.uniform(-0.006, 0.006)
+                jitter[jump_idx:] += jump_val
+                
+            # Stellar Flares (rapid Gaussian spikes)
+            flares = np.zeros(length)
+            if np.random.random() < 0.2: # 20% chance of a stellar flare
+                num_flares = np.random.randint(1, 3)
+                for _ in range(num_flares):
+                    flare_idx = np.random.randint(100, length - 100)
+                    flare_amp = np.random.uniform(0.01, 0.03)
+                    width = np.random.uniform(2, 6)
+                    flares += flare_amp * np.exp(-0.5 * ((np.arange(length) - flare_idx) / width) ** 2)
+                    
+            noise = np.random.normal(0, 0.003, length)
+            self.baselines.append(1.0 + stellar_var + jitter + flares + noise)
 
     def __len__(self):
         return int(np.ceil(self.num_samples / self.batch_size))
