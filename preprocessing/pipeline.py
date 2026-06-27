@@ -141,16 +141,8 @@ class PreprocessingPipeline:
         for curve, label in zip(x_data, y_data):
             clean_curve = self.process_single_curve(curve)
             clean_curve = self.segment_or_pad(clean_curve, target_len)
-            
-            if label == 1 and self.config.get('enable_augmentation', True):
-                # Augment transit signals (minority class) to balance dataset
-                aug_curves = self.augment_light_curve(clean_curve)
-                for ac in aug_curves:
-                    processed_x.append(ac)
-                    processed_y.append(1)
-            else:
-                processed_x.append(clean_curve)
-                processed_y.append(label)
+            processed_x.append(clean_curve)
+            processed_y.append(label)
                 
         X = np.array(processed_x, dtype=np.float32)
         y = np.array(processed_y, dtype=np.float32)
@@ -160,7 +152,7 @@ class PreprocessingPipeline:
         val_size = self.config.get('val_size', 0.1)
         r_state = self.config.get('random_state', 42)
         
-        # First split off test set
+        # First split off test set (stratified by y to preserve proportions)
         X_train_val, X_test, y_train_val, y_test = train_test_split(
             X, y, test_size=test_size, random_state=r_state, stratify=y
         )
@@ -171,8 +163,63 @@ class PreprocessingPipeline:
             X_train_val, y_train_val, test_size=rel_val_size, random_state=r_state, stratify=y_train_val
         )
         
+        # Apply data augmentation ONLY to the training set
+        X_train_aug = []
+        y_train_aug = []
+        
+        for curve, label in zip(X_train, y_train):
+            if label == 1 and self.config.get('enable_augmentation', True):
+                aug_curves = self.augment_light_curve(curve)
+                for ac in aug_curves:
+                    X_train_aug.append(ac)
+                    y_train_aug.append(1)
+            else:
+                X_train_aug.append(curve)
+                y_train_aug.append(label)
+                
+        X_train_aug = np.array(X_train_aug, dtype=np.float32)
+        y_train_aug = np.array(y_train_aug, dtype=np.float32)
+        
+        # Balance the training set (1:1 ratio)
+        c0_idx = np.where(y_train_aug == 0)[0]
+        c1_idx = np.where(y_train_aug == 1)[0]
+        
+        n0 = len(c0_idx)
+        n1 = len(c1_idx)
+        
+        if n0 > 0 and n1 > 0:
+            target_size = max(n0, n1)
+            
+            # Oversample class 0 if needed
+            if n0 < target_size:
+                np.random.seed(r_state)
+                extra_idx = np.random.choice(c0_idx, size=target_size - n0, replace=True)
+                c0_balanced_idx = np.concatenate([c0_idx, extra_idx])
+            else:
+                c0_balanced_idx = c0_idx
+                
+            # Oversample class 1 if needed
+            if n1 < target_size:
+                np.random.seed(r_state)
+                extra_idx = np.random.choice(c1_idx, size=target_size - n1, replace=True)
+                c1_balanced_idx = np.concatenate([c1_idx, extra_idx])
+            else:
+                c1_balanced_idx = c1_idx
+                
+            balanced_idx = np.concatenate([c0_balanced_idx, c1_balanced_idx])
+            # Shuffle the balanced training dataset
+            np.random.seed(r_state)
+            np.random.shuffle(balanced_idx)
+            
+            X_train_balanced = X_train_aug[balanced_idx]
+            y_train_balanced = y_train_aug[balanced_idx]
+        else:
+            # Fallback if one class has 0 samples in train split
+            X_train_balanced = X_train_aug
+            y_train_balanced = y_train_aug
+            
         return {
-            'train': (X_train, y_train),
+            'train': (X_train_balanced, y_train_balanced),
             'val': (X_val, y_val),
             'test': (X_test, y_test)
         }
