@@ -693,15 +693,20 @@ function LiveDemoView({ sfx, playClick }) {
   };
 
   const getChartData = () => {
-    if (fluxData.length === 0) return [];
+    if (!fluxData?.length) return [];
+
     return fluxData.map((rawVal, idx) => {
-      const cleanVal = result && result.denoised_flux ? result.denoised_flux[idx] : rawVal;
-      const gradcamVal = result && result.gradcam_heatmap ? result.gradcam_heatmap[idx] : 0;
+      const cleanVal =
+        result?.denoised_flux?.[idx] ?? rawVal;
+
+      const gradcamVal =
+        result?.gradcam_heatmap?.[idx] ?? 0;
+
       return {
         index: idx,
-        raw: parseFloat(rawVal.toFixed(6)),
-        denoised: parseFloat(cleanVal.toFixed(6)),
-        highlight: parseFloat(gradcamVal.toFixed(4))
+        raw: Number(rawVal ?? 0),
+        denoised: Number(cleanVal ?? rawVal ?? 0),
+        highlight: Number(gradcamVal ?? 0)
       };
     });
   };
@@ -825,15 +830,15 @@ function LiveDemoView({ sfx, playClick }) {
                     <div className="text-gray-400 font-bold border-b border-white/5 pb-1">Transit Parameters</div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Transit Depth:</span>
-                      <span className="text-cyan-400 font-bold">{result.estimated_depth.toFixed(3)}%</span>
+                      <span className="text-cyan-400 font-bold">{Number(result?.estimated_depth ?? 0).toFixed(3)}%</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Transit Duration:</span>
-                      <span className="text-cyan-400 font-bold">{result.estimated_duration.toFixed(1)} hours</span>
+                      <span className="text-cyan-400 font-bold">{Number(result?.estimated_duration ?? 0).toFixed(1)} hours</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Orbital Period:</span>
-                      <span className="text-cyan-400 font-bold">{result.estimated_period.toFixed(1)} days</span>
+                      <span className="text-cyan-400 font-bold">{Number(result?.estimated_period ?? 0).toFixed(1)} days</span>
                     </div>
                   </div>
                 )}
