@@ -131,7 +131,10 @@ pnpm-lock.yaml.bak
 ###############################
 # ML Models
 ###############################
-saved_models/
+# Exclude the saved_models folder and its contents from gitignore so they are tracked
+!saved_models/
+!saved_models/**
+
 checkpoints/
 weights/
 models/checkpoints/
