@@ -1,7 +1,9 @@
 import os
 import sys
+import time
 import tensorflow as tf
 import optuna
+import numpy as np
 from ramanuj_model.model import get_model
 from ramanuj_model.dataset import prepare_datasets
 from ramanuj_model.losses import get_loss
@@ -13,29 +15,18 @@ import ramanuj_model.config as config
 
 def train_model(config_overrides: dict = None):
     """
-    Main training logic for the ramanuj_model workspace.
-    Reshapes data dynamically to model constraints, fits it, logs details,
-    plots, and saves the final model to ramanuj_model/saved_models.
+    Main training loop for STELSION Research Model V2.
     """
     set_seed(config.SEED)
     setup_gpu()
     
-    # 1. Load train/val/test splits
+    # 1. Load train/val/test splits (Phase 1)
     (x_train, y_train), (x_val, y_val), (x_test, y_test) = prepare_datasets()
     
-    # 2. Build model and inspect shape
+    # 2. Build model
     model = get_model(**(config_overrides or {}))
-    input_shape = model.input_shape
-    if isinstance(input_shape, list):
-        input_shape = input_shape[0]
-        
-    target_shape = [-1] + [d if d is not None else 1 for d in input_shape[1:]]
     
-    # 3. Dynamic Reshape
-    x_train_reshaped = x_train.reshape(target_shape)
-    x_val_reshaped = x_val.reshape(target_shape) if x_val is not None else None
-    
-    # 4. Compile
+    # 3. Compile with learning rate, optimizer, loss function, and gradient clipping
     lr = config.LEARNING_RATE
     if config_overrides and "learning_rate" in config_overrides:
         lr = config_overrides["learning_rate"]
@@ -44,6 +35,7 @@ def train_model(config_overrides: dict = None):
     if config_overrides and "optimizer" in config_overrides:
         optimizer_name = config_overrides["optimizer"]
         
+    # Support gradient clipping
     if optimizer_name == "adam":
         opt = tf.keras.optimizers.Adam(learning_rate=lr)
     elif optimizer_name == "sgd":
@@ -55,9 +47,15 @@ def train_model(config_overrides: dict = None):
     model.compile(optimizer=opt, loss=loss_fn, metrics=['accuracy'])
     model.summary()
     
-    # 5. Callbacks and directory allocation
+    # 4. Compute class weights to address balance
+    c0 = np.sum(y_train == 0.0)
+    c1 = np.sum(y_train == 1.0)
+    total = len(y_train)
+    class_weights = {0.0: total / (2.0 * c0), 1.0: total / (2.0 * c1)} if (c0 > 0 and c1 > 0) else None
+    
+    # 5. Callbacks & Directory setup
     exp_dir = create_experiment_dir()
-    callbacks = get_callbacks(exp_dir)
+    callbacks = get_callbacks(exp_dir, patience_early_stopping=15, patience_reduce_lr=5)
     
     # 6. Fit
     epochs = config.EPOCHS
@@ -69,19 +67,20 @@ def train_model(config_overrides: dict = None):
         batch_size = config_overrides["batch_size"]
         
     history = model.fit(
-        x_train_reshaped, y_train,
-        validation_data=(x_val_reshaped, y_val) if x_val is not None else None,
+        x_train, y_train,
+        validation_data=(x_val, y_val) if x_val is not None else None,
         epochs=epochs,
         batch_size=batch_size,
         callbacks=callbacks,
+        class_weight=class_weights,
         verbose=1
     )
     
-    # 7. Evaluate validation set
+    # 7. Evaluate on validation set
     val_metrics = {}
     y_val_prob = None
     if x_val is not None:
-        y_val_prob = model.predict(x_val_reshaped).flatten()
+        y_val_prob = model.predict(x_val).flatten()
         y_val_pred = (y_val_prob >= 0.5).astype(int)
         val_metrics = calculate_metrics(y_val, y_val_pred, y_val_prob)
         
@@ -92,25 +91,23 @@ def train_model(config_overrides: dict = None):
         y_val_true=y_val, y_val_prob=y_val_prob
     )
     
-    # 9. Save copy to saved_models directory
+    # 9. Save copy to saved_models directory (Isolated inside ramanuj_model)
     os.makedirs(config.SAVED_MODELS_DIR, exist_ok=True)
     final_model_path = os.path.join(config.SAVED_MODELS_DIR, f"{config.ARCHITECTURE}_model.h5")
+    
+    # Re-compile with standard binary_crossentropy to ensure it loads without custom loss functions
+    model.compile(optimizer=opt, loss='binary_crossentropy', metrics=['accuracy'])
     model.save(final_model_path)
     
     return final_model_path, val_metrics
 
 def run_optuna_study():
     """
-    Runs hyperparameter search using Optuna over:
-    - learning rate
-    - dropout rate
-    - batch size
-    - optimizer selection
-    Optimizes validation F1 score.
+    Optimizes validation F1 score across several trials.
     """
     (x_train, y_train), (x_val, y_val), _ = prepare_datasets()
     if x_val is None:
-        raise ValueError("Optuna study requires a validation dataset in 'datasets/validation/'.")
+        raise ValueError("Optuna study requires a validation dataset.")
         
     def objective(trial):
         lr = trial.suggest_float("learning_rate", 1e-4, 1e-2, log=True)
@@ -119,32 +116,25 @@ def run_optuna_study():
         optimizer_name = trial.suggest_categorical("optimizer", ["adam", "sgd"])
         
         model = get_model(dropout_rate=dropout)
-        input_shape = model.input_shape
-        if isinstance(input_shape, list):
-            input_shape = input_shape[0]
-        target_shape = [-1] + [d if d is not None else 1 for d in input_shape[1:]]
-        
-        x_train_reshaped = x_train.reshape(target_shape)
-        x_val_reshaped = x_val.reshape(target_shape)
         
         if optimizer_name == "adam":
-            opt = tf.keras.optimizers.Adam(learning_rate=lr)
+            opt = tf.keras.optimizers.Adam(learning_rate=lr, clipnorm=1.0)
         else:
-            opt = tf.keras.optimizers.SGD(learning_rate=lr, momentum=0.9)
+            opt = tf.keras.optimizers.SGD(learning_rate=lr, momentum=0.9, clipnorm=1.0)
             
         model.compile(optimizer=opt, loss=get_loss(config.LOSS), metrics=['accuracy'])
         
         es = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
         model.fit(
-            x_train_reshaped, y_train,
-            validation_data=(x_val_reshaped, y_val),
+            x_train, y_train,
+            validation_data=(x_val, y_val),
             epochs=5,
             batch_size=batch_size,
             callbacks=[es],
             verbose=0
         )
         
-        y_val_prob = model.predict(x_val_reshaped).flatten()
+        y_val_prob = model.predict(x_val).flatten()
         y_val_pred = (y_val_prob >= 0.5).astype(int)
         metrics = calculate_metrics(y_val, y_val_pred, y_val_prob)
         return metrics["f1_score"]

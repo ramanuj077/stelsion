@@ -1,6 +1,7 @@
 import tensorflow as tf
 from tensorflow.keras import layers
 
+@tf.keras.utils.register_keras_serializable(package="RamanujAttention")
 class SpatialAttention2D(layers.Layer):
     """
     Computes spatial attention map using average and max pooling across channels,
@@ -34,6 +35,7 @@ class SpatialAttention2D(layers.Layer):
         return config
 
 
+@tf.keras.utils.register_keras_serializable(package="RamanujAttention")
 class ChannelAttention2D(layers.Layer):
     """
     Computes channel attention map using squeeze-and-excitation block.

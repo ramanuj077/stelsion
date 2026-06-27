@@ -1,5 +1,15 @@
 import os
 import sys
+
+# Prioritize workspace root and remove local dir to prevent module shadowing
+workspace_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+script_dir = os.path.dirname(os.path.abspath(__file__))
+if script_dir in sys.path:
+    sys.path.remove(script_dir)
+if workspace_root in sys.path:
+    sys.path.remove(workspace_root)
+sys.path.insert(0, workspace_root)
+
 import argparse
 import subprocess
 import ramanuj_model.config as config
@@ -44,8 +54,10 @@ def main():
         # Execute evaluation/benchmark.py to record the model performance in leaderboard.csv
         benchmark_script = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "evaluation", "benchmark.py"))
         try:
-            # We run it using the same python interpreter (sys.executable)
-            subprocess.run([sys.executable, benchmark_script, model_path], check=True)
+            # We run it using the same python interpreter (sys.executable) with MPLBACKEND=Agg
+            sub_env = os.environ.copy()
+            sub_env["MPLBACKEND"] = "Agg"
+            subprocess.run([sys.executable, benchmark_script, model_path], env=sub_env, check=True)
             print("Auto-benchmark logging completed successfully!")
         except Exception as e:
             print(f"Warning: Failed to run auto-benchmark: {e}")

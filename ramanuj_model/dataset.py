@@ -1,121 +1,239 @@
 import os
 import json
 import numpy as np
-from ramanuj_model.preprocessing import apply_preprocessing
-from ramanuj_model.augmentation import augment_light_curve
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from astropy.timeseries import BoxLeastSquares
+from ramanuj_model.preprocessing import apply_preprocessing_pipeline
 import ramanuj_model.config as config
 
-def load_data_from_dir(directory: str, preprocessing_name: str = "combined", segment_len: int = 7200):
+def run_bls_candidate_generation(time: np.ndarray, flux: np.ndarray):
     """
-    Loads dataset files from the specified folder.
-    Supports JSON, CSV, and NumPy arrays.
+    Runs Box Least Squares (BLS) periodogram search on a light curve
+    to estimate candidate transit parameters.
     """
-    if not os.path.exists(directory):
-        return None, None
-        
-    x_list, y_list = [], []
-    
-    # 1. Try loading JSON files first
-    files = [f for f in os.listdir(directory) if f.endswith(".json")]
-    for f in files:
-        filepath = os.path.join(directory, f)
-        with open(filepath, "r") as file_obj:
-            try:
-                data = json.load(file_obj)
-                if "flux" in data and "label" in data:
-                    x_list.append(data["flux"])
-                    y_list.append(data["label"])
-            except Exception:
-                pass
-                
-    # 2. Try loading NumPy arrays if JSON not present
-    if not x_list:
-        try:
-            npy_x_candidates = [f for f in os.listdir(directory) if "x_" in f or "X_" in f]
-            npy_y_candidates = [f for f in os.listdir(directory) if "y_" in f or "Y_" in f]
-            if npy_x_candidates and npy_y_candidates:
-                x_arr = np.load(os.path.join(directory, npy_x_candidates[0]))
-                y_arr = np.load(os.path.join(directory, npy_y_candidates[0]))
-                # Convert back to list to allow uniform pipeline processing
-                x_list = x_arr.tolist()
-                y_list = y_arr.tolist()
-        except Exception:
-            pass
+    try:
+        min_p = config.BLS_MIN_PERIOD
+        max_p = min(config.BLS_MAX_PERIOD, (np.max(time) - np.min(time)) / 2.0)
+        if max_p <= min_p:
+            max_p = min_p + 5.0
             
-    if not x_list:
-        return None, None
+        bls = BoxLeastSquares(time, flux)
+        durations = np.linspace(0.04, 0.2, 5)
+        period_grid = np.linspace(min_p, max_p, 1000)
+        power_results = bls.power(period_grid, durations)
         
-    # Preprocess all curves
-    processed_x = []
-    for curve in x_list:
-        # Preprocess using the chosen config pipeline
-        p_curve = apply_preprocessing(curve, pipeline_name=preprocessing_name)
-        # Pad or segment to match expected flat segment length
-        curr_len = len(p_curve)
-        if curr_len > segment_len:
-            start = (curr_len - segment_len) // 2
-            p_curve = p_curve[start:start+segment_len]
-        elif curr_len < segment_len:
-            p_curve = np.pad(p_curve, (0, segment_len - curr_len), mode='edge')
-        processed_x.append(p_curve)
+        best_idx = np.argmax(power_results.power)
+        period = float(power_results.period[best_idx])
+        t0 = float(power_results.transit_time[best_idx])
+        duration = float(power_results.duration[best_idx])
+        depth = float(power_results.depth[best_idx])
+    except Exception:
+        # Fallback values
+        period = 10.0
+        t0 = np.min(time) + 2.0
+        duration = 0.1
+        depth = 0.01
         
-    return np.array(processed_x, dtype=np.float32), np.array(y_list, dtype=np.float32)
+    return period, t0, duration, depth
+
+def extract_folded_views(time: np.ndarray, flux: np.ndarray, period: float, t0: float, duration: float):
+    """
+    Generates three representation views from the folded light curve:
+    1. Global View (2000 bins)
+    2. Local View (200 bins)
+    3. Orbit Matrix (10 x 500 = 5000 elements)
+    """
+    # 1. Fold light curve and center transit at phase 0.5
+    phase = ((time - t0) / period + 0.5) % 1.0
+    sort_idx = np.argsort(phase)
+    folded_phase = phase[sort_idx]
+    folded_flux = flux[sort_idx]
+    
+    # 2. Global View: interpolate complete orbit to 2000 points
+    global_grid = np.linspace(0.0, 1.0, config.GLOBAL_VIEW_LEN)
+    global_view = np.interp(global_grid, folded_phase, folded_flux)
+    
+    # 3. Local View: extract transit window (4 * duration) centered at phase 0.5
+    local_width = 4.0 * (duration / period)
+    local_start = max(0.0, 0.5 - local_width / 2.0)
+    local_end = min(1.0, 0.5 + local_width / 2.0)
+    
+    local_grid = np.linspace(local_start, local_end, config.LOCAL_VIEW_LEN)
+    local_view = np.interp(local_grid, folded_phase, folded_flux)
+    
+    # 4. Orbit Matrix: segment by individual orbits (shape 10 x 500 = 5000 elements)
+    num_orbits = 10
+    num_bins = 500
+    t_start, t_end = np.min(time), np.max(time)
+    
+    start_orb = int(np.floor((t_start - t0) / period))
+    end_orb = int(np.ceil((t_end - t0) / period))
+    
+    orbits = []
+    for i in range(start_orb, end_orb):
+        orb_t_start = t0 + (i - 0.5) * period
+        orb_t_end = t0 + (i + 0.5) * period
+        
+        mask = (time >= orb_t_start) & (time < orb_t_end)
+        t_orb = time[mask]
+        f_orb = flux[mask]
+        
+        if len(t_orb) > 5:
+            p_orb = (t_orb - orb_t_start) / period
+            s_idx = np.argsort(p_orb)
+            
+            grid_orb = np.linspace(0.0, 1.0, num_bins)
+            binned = np.interp(grid_orb, p_orb[s_idx], f_orb[s_idx])
+            orbits.append(binned)
+            
+    if len(orbits) == 0:
+        orbits = [np.zeros(num_bins) for _ in range(num_orbits)]
+        
+    if len(orbits) < num_orbits:
+        padding = [np.zeros(num_bins) for _ in range(num_orbits - len(orbits))]
+        orbits.extend(padding)
+    elif len(orbits) > num_orbits:
+        orbits = orbits[:num_orbits]
+        
+    orbit_matrix = np.array(orbits, dtype=np.float32)
+    
+    return global_view, local_view, orbit_matrix
+
+def pack_views(global_view, local_view, orbit_matrix):
+    """
+    Concatenates global, local, and matrix views into a single flat array
+    of length 7200 and reshapes it to (9, 800, 1).
+    """
+    packed = np.concatenate([
+        global_view.flatten(),
+        local_view.flatten(),
+        orbit_matrix.flatten()
+    ])
+    return packed.reshape(9, 800, 1)
 
 def prepare_datasets():
     """
-    Loads all data, applies augmentations on the training set,
-    and returns balanced splits ready for model input.
+    Loads all .npz Kepler light curves listed in dataset_index.csv.
+    Applies adaptive preprocessing, runs BLS periodograms, folds, splits,
+    balances, and exports test files for shared auto-benchmarking.
     """
-    # Load dataset splits
-    train_data = load_data_from_dir("datasets/train", config.PREPROCESSING, config.SEGMENT_LENGTH)
-    val_data = load_data_from_dir("datasets/validation", config.PREPROCESSING, config.SEGMENT_LENGTH)
-    test_data = load_data_from_dir("datasets/test", config.PREPROCESSING, config.SEGMENT_LENGTH)
-    
-    if train_data[0] is None:
-        raise ValueError(
-            "No training dataset found in 'datasets/train/'. "
-            "Please copy train light curves (.json, .csv, or .npy) first."
-        )
+    index_path = "dataset_index.csv"
+    if not os.path.exists(index_path):
+        raise FileNotFoundError(f"dataset_index.csv not found. Run dataset_fetcher.py first.")
         
-    x_train, y_train = train_data
-    x_val, y_val = val_data if val_data[0] is not None else (None, None)
-    x_test, y_test = test_data if test_data[0] is not None else (None, None)
+    df = pd.read_csv(index_path)
+    # Remove duplicates by KIC ID (kepid)
+    df = df.drop_duplicates(subset=["kepid"])
     
-    # Apply augmentations on training positive transits
-    if config.ENABLE_AUGMENTATION:
-        x_aug, y_aug = [], []
-        for curve, label in zip(x_train, y_train):
-            if label == 1:
-                aug_curves = augment_light_curve(
-                    curve,
-                    roll_frac=config.ROLL_FRACTION,
-                    noise_std=config.NOISE_STD,
-                    scale_min=config.SCALE_MIN,
-                    scale_max=config.SCALE_MAX
-                )
-                for ac in aug_curves:
-                    x_aug.append(ac)
-                    y_aug.append(1.0)
-            else:
-                x_aug.append(curve)
-                y_aug.append(0.0)
-        x_train = np.array(x_aug, dtype=np.float32)
-        y_train = np.array(y_aug, dtype=np.float32)
+    x_packed = []
+    labels = []
+    kepids = []
+    
+    print("Ingesting and processing Kepler NPZ light curves...")
+    for _, row in df.iterrows():
+        file_path = row["file"]
+        kepid = row["kepid"]
+        lbl_str = str(row["label"]).strip().lower()
         
-    # Oversample minority class to balance training set 1:1
-    c0 = np.where(y_train == 0)[0]
-    c1 = np.where(y_train == 1)[0]
+        # Map labels: confirmed planet or candidate -> 1.0, others -> 0.0
+        label = 1.0 if lbl_str in ["transit", "candidate"] else 0.0
+        
+        if not os.path.exists(file_path):
+            continue
+            
+        try:
+            npz = np.load(file_path)
+            time = npz["time"]
+            flux = npz["flux"]
+            
+            # Remove NaNs from raw input
+            nan_mask = np.isnan(time) | np.isnan(flux)
+            time = time[~nan_mask]
+            flux = flux[~nan_mask]
+            
+            if len(flux) < 50:
+                continue
+                
+            # Apply configurable preprocessing
+            clean_flux = apply_preprocessing_pipeline(flux)
+            
+            # Run BLS candidate generation
+            period, t0, duration, depth = run_bls_candidate_generation(time, clean_flux)
+            
+            # Fold and extract representation views
+            g_view, l_view, o_matrix = extract_folded_views(time, clean_flux, period, t0, duration)
+            
+            # Pack views into the single (9, 800, 1) shape expected by the model
+            packed_sample = pack_views(g_view, l_view, o_matrix)
+            
+            x_packed.append(packed_sample)
+            labels.append(label)
+            kepids.append(kepid)
+        except Exception as e:
+            print(f"Warning: Corrupted sample {kepid} skipped: {e}")
+            
+    # Convert lists to NumPy arrays
+    x_packed = np.array(x_packed, dtype=np.float32)
+    labels = np.array(labels, dtype=np.float32)
+    kepids = np.array(kepids, dtype=np.int32)
+    
+    # Stratified Splits (70% Train, 15% Validation, 15% Test)
+    indices = np.arange(len(labels))
+    train_idx, temp_idx = train_test_split(
+        indices, test_size=0.3, random_state=config.SEED, stratify=labels
+    )
+    val_idx, test_idx = train_test_split(
+        temp_idx, test_size=0.5, random_state=config.SEED, stratify=labels[temp_idx]
+    )
+    
+    # Extract splits
+    train_split = (x_packed[train_idx], labels[train_idx])
+    val_split = (x_packed[val_idx], labels[val_idx])
+    test_split = (x_packed[test_idx], labels[test_idx])
+    
+    # In-memory logging of dataset details
+    print("\n" + "=" * 50)
+    print("DATASET PIPELINE INGESTION LOG")
+    print("=" * 50)
+    print(f"Total Unique Ingested Samples: {len(labels)}")
+    print(f"Class Distribution: {np.sum(labels == 1.0)} Transits, {np.sum(labels == 0.0)} Non-Transits")
+    print(f"Train set size:       {len(train_idx)} samples")
+    print(f"Validation set size:  {len(val_idx)} samples")
+    print(f"Test set size:        {len(test_idx)} samples")
+    print("=" * 50 + "\n")
+    
+    # Save test dataset split to datasets/test/ for shared benchmark evaluation
+    os.makedirs("datasets/test", exist_ok=True)
+    for idx in test_idx:
+        k_id = kepids[idx]
+        lbl = int(labels[idx])
+        flat_flux = x_packed[idx].flatten()
+        test_file = os.path.join("datasets/test", f"KIC_{k_id}.json")
+        with open(test_file, "w") as f:
+            json.dump({
+                "flux": flat_flux.tolist(),
+                "label": lbl,
+                "candidate": f"KIC {k_id}"
+            }, f)
+            
+    # Apply balancing to training set (oversample minority class)
+    tr_x, tr_y = train_split
+    c0 = np.where(tr_y == 0.0)[0]
+    c1 = np.where(tr_y == 1.0)[0]
+    
     if len(c0) > 0 and len(c1) > 0 and len(c0) != len(c1):
-        target_size = max(len(c0), len(c1))
-        if len(c0) < target_size:
-            extra = np.random.choice(c0, size=target_size - len(c0), replace=True)
+        target = max(len(c0), len(c1))
+        if len(c0) < target:
+            extra = np.random.choice(c0, size=target - len(c0), replace=True)
             c0 = np.concatenate([c0, extra])
-        if len(c1) < target_size:
-            extra = np.random.choice(c1, size=target_size - len(c1), replace=True)
+        if len(c1) < target:
+            extra = np.random.choice(c1, size=target - len(c1), replace=True)
             c1 = np.concatenate([c1, extra])
-        balanced_idx = np.concatenate([c0, c1])
-        np.random.shuffle(balanced_idx)
-        x_train = x_train[balanced_idx]
-        y_train = y_train[balanced_idx]
+            
+        balanced_indices = np.concatenate([c0, c1])
+        np.random.shuffle(balanced_indices)
         
-    return (x_train, y_train), (x_val, y_val), (x_test, y_test)
+        train_split = (tr_x[balanced_indices], tr_y[balanced_indices])
+        
+    return train_split, val_split, test_split

@@ -9,31 +9,42 @@ EXPERIMENTS_DIR = os.path.join(BASE_DIR, "experiments")
 SEED = 42
 TF_GPU_MEMORY_GROWTH = True
 
-# Dataset settings
-# Selected preprocessing pipeline: "baseline", "wavelet", "sg_filter", "adaptive", "combined"
-PREPROCESSING = "combined"
+# Preprocessing Stage Toggles (Phase 2)
+STAGE_NAN_INTERP = True
+STAGE_SIGMA_CLIP = True
+STAGE_NOISE_EST = True
+STAGE_ADAPTIVE_FILTER = True
+STAGE_DETRENDING = True
+STAGE_NORMALIZATION = True
+PREPROCESSING = "adaptive_v2"
+
+# Shape configurations (Phase 4)
+GLOBAL_VIEW_LEN = 2000
+LOCAL_VIEW_LEN = 200
+ORBIT_MATRIX_SHAPE = (9, 800)  # Orbits x Bins
 INPUT_SHAPE = (9, 800, 1)
-SEGMENT_LENGTH = 7200  # product of input shape dimensions
+SEGMENT_LENGTH = 7200         # Matches final benchmark input (9 * 800)
 
-# Augmentation settings
-ENABLE_AUGMENTATION = True
-ROLL_FRACTION = 0.25
-NOISE_STD = 0.01
-SCALE_MIN = 0.7
-SCALE_MAX = 1.3
+# BLS Parameters (Phase 3)
+BLS_MIN_PERIOD = 0.5   # in days
+BLS_MAX_PERIOD = 20.0  # in days
+BLS_OVERSAMPLE = 5
 
-# Model training settings
+# MC Dropout Settings (Phase 7)
+MC_DROPOUT_RUNS = 20
+
+# Model training settings (Phase 9)
 BATCH_SIZE = 8
-EPOCHS = 15
+EPOCHS = 80
 LEARNING_RATE = 0.001
-OPTIMIZER = "adam"       # "adam", "sgd", "rmsprop"
-LOSS = "bce"             # "bce", "focal_loss"
+OPTIMIZER = "adam"       # "adam", "sgd"
+LOSS = "bce"      # "bce", "focal_loss"
 WEIGHT_DECAY = 1e-4
 DROPOUT_RATE = 0.3
 
 # Active architecture selection
 # Options: "baseline", "inceptiontime", "minor_axis_attention", "hybrid"
-ARCHITECTURE = "baseline"
+ARCHITECTURE = "hybrid"
 
 # Hyperparameter optimization (Optuna)
-OPTUNA_TRIALS = 15
+OPTUNA_TRIALS = 10

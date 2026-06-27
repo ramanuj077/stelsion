@@ -1,10 +1,20 @@
 import os
 import sys
+
+# Prioritize workspace root and remove local dir to prevent module shadowing
+workspace_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+script_dir = os.path.dirname(os.path.abspath(__file__))
+if script_dir in sys.path:
+    sys.path.remove(script_dir)
+if workspace_root in sys.path:
+    sys.path.remove(workspace_root)
+sys.path.insert(0, workspace_root)
+
 import argparse
 import numpy as np
 import tensorflow as tf
 from ramanuj_model.dataset import load_data_from_dir
-from ramanuj_model.preprocessing import apply_preprocessing
+from ramanuj_model.preprocessing import apply_preprocessing_pipeline
 from evaluation.metrics import calculate_metrics
 import ramanuj_model.config as config
 
