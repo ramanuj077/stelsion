@@ -140,3 +140,14 @@ def hybrid_denoising(flux, wavelet='db4', level=2, sg_window=15, sg_polyorder=2,
     flux_clipped = remove_outliers_sigma_clipping(flux_med, sigma=sigma, iters=iters)
     return flux_clipped
 
+def moving_average_median_filter(flux, window_size=15):
+    """
+    Smooths the light curve by applying a median filter followed by a moving average filter.
+    """
+    # 1. Median filter
+    flux_med = median_filter(flux, kernel_size=window_size)
+    # 2. Moving average filter
+    flux_smoothed = moving_average(flux_med, window_size=window_size)
+    return flux_smoothed
+
+
