@@ -7,7 +7,7 @@ import {
   Cpu, Layers, Search, BarChart3, Radio, Server, Award, Info, ChevronRight,
   Monitor, Presentation, UserCheck, Settings, Check, ChevronLeft, Gamepad2, Database, Rocket,
   TrendingUp, Minimize2, Maximize2, AlertCircle, Compass as CompassIcon, Disc,
-  Pause, SkipBack, SkipForward
+  Pause, SkipBack, SkipForward, Github
 } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, AreaChart, Area } from 'recharts';
 import Universe from './Universe';
@@ -1338,6 +1338,17 @@ export default function App() {
             <Activity className="w-3.5 h-3.5" />
             <span>LIVE DEMO</span>
           </button>
+
+          <a
+            href="https://github.com/ramanuj077/stelsion/"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => playClickSFX()}
+            className="px-4 py-2 rounded-lg border border-white/5 text-gray-400 hover:text-white hover:bg-white/5 hover:border-white/10 transition-all duration-200 flex items-center space-x-1.5"
+          >
+            <Github className="w-3.5 h-3.5" />
+            <span>GITHUB</span>
+          </a>
 
 
           <div className="flex items-center space-x-2 border-l border-white/10 pl-4">
